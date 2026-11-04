@@ -44,18 +44,18 @@
      <dependency>
          <groupId>io.github.th3n3wn00b</groupId>
          <artifactId>openzl-jni</artifactId>
-         <version>0.3.0</version>
+         <version>0.3.1</version>
      </dependency>
 
      <dependency>
          <groupId>io.github.th3n3wn00b</groupId>
          <artifactId>openzl-jni</artifactId>
-         <version>0.3.0</version>
+         <version>0.3.1</version>
          <classifier>linux_amd64</classifier>
      </dependency>
      ```
 
-     Published native classifier: `linux_amd64`. (`windows_amd64` is built and tested in CI but not published yet.) The Java packages are still `io.github.hybledav.*`.
+     Published native classifiers: `linux_amd64` and `windows_amd64` (use the one for the machine that runs the code; on Windows, swap the classifier above). The Java packages are still `io.github.hybledav.*`.
 
      `protobuf-java` is an *optional* dependency: plain compression does not need it. If you use `OpenZLProtobuf`, add it yourself:
 
@@ -315,10 +315,10 @@ mvn -f JNI/pom.xml -pl openzl-jni -am clean package
 Push a tag `vX.Y.Z` equal to the project version (`<version>` in `JNI/pom.xml`):
 
 ```bash
-git tag v0.3.0 && git push origin v0.3.0
+git tag v0.3.1 && git push origin v0.3.1
 ```
 
-CI builds and tests Linux and Windows, then publishes the base jar, `linux_amd64`, sources and javadoc to GitHub Packages, and a final job resolves them from a fresh consumer project on Linux and compresses with them. GitHub Packages does not accept re-publishing a version: bump the version for the next release.
+CI builds and tests Linux and Windows, then publishes the base jar, `linux_amd64`, `windows_amd64`, sources and javadoc to GitHub Packages, and a final job resolves them from a fresh consumer project on Linux and on Windows and compresses with them. GitHub Packages does not accept re-publishing a version: bump the version for the next release.
 
 ---
 

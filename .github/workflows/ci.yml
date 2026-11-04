@@ -13,7 +13,7 @@ on:
         type: boolean
         default: false
       version:
-        description: 'Release version to publish (e.g. 0.3.0); required when publishing'
+        description: 'Release version to publish (e.g. 0.3.1); required when publishing'
         required: false
 
 concurrency:
@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  REVISION: 0.3.0
+  REVISION: 0.3.1
 
 jobs:
   build:
@@ -259,34 +259,44 @@ jobs:
           fi
           echo "RELEASE_VERSION=${project_version}" >> "$GITHUB_ENV"
 
-      - name: Download Linux native library
+      - name: Download native libraries
         uses: actions/download-artifact@v8
         with:
-          name: openzl-jni-linux_amd64
-          path: linux-artifact
+          pattern: openzl-jni-*_amd64
+          path: native-artifacts
 
-      - name: Stage native artifact
+      - name: Stage native artifacts
         run: |
-          dest="JNI/openzl-jni/src/main/resources/lib/linux_amd64"
-          mkdir -p "$dest"
-          lib=$(find linux-artifact -type f -name libopenzl_jni.so | head -n 1)
-          if [ -z "$lib" ]; then
-            echo "::error::libopenzl_jni.so not found in the linux_amd64 build artifact"
-            exit 1
-          fi
-          cp "$lib" "$dest/"
+          stage() {
+            classifier="$1"; lib_name="$2"
+            dest="JNI/openzl-jni/src/main/resources/lib/${classifier}"
+            mkdir -p "$dest"
+            lib=$(find "native-artifacts/openzl-jni-${classifier}" -type f -name "${lib_name}" | head -n 1)
+            if [ -z "$lib" ]; then
+              echo "::error::${lib_name} not found in the ${classifier} build artifact"
+              exit 1
+            fi
+            cp "$lib" "$dest/"
+          }
+          stage linux_amd64 libopenzl_jni.so
+          stage windows_amd64 openzl_jni.dll
 
       - name: Package
         run: |
           mvn -B -ntp -f JNI/pom.xml -pl openzl-jni -am \
             -DskipTests -Dgpg.skip=true -Djacoco.skip=true clean package
-          unzip -l "JNI/openzl-jni/target/openzl-jni-${RELEASE_VERSION}-linux_amd64.jar" \
-            | grep 'lib/linux_amd64/libopenzl_jni.so'
+          T="JNI/openzl-jni/target"
+          unzip -l "$T/openzl-jni-${RELEASE_VERSION}-linux_amd64.jar" | grep 'lib/linux_amd64/libopenzl_jni.so'
+          unzip -l "$T/openzl-jni-${RELEASE_VERSION}-windows_amd64.jar" | grep 'lib/windows_amd64/openzl_jni.dll'
+          if unzip -l "$T/openzl-jni-${RELEASE_VERSION}.jar" | grep -q ' lib/'; then
+            echo "::error::the base jar must not contain native libraries"
+            exit 1
+          fi
 
-      # deploy-file publishes exactly these files (this job's windows_amd64 jar has
-      # no DLL) and runs outside the project, so the POM's deploy/Central settings
-      # do not interfere. The flattened POM has no <parent> to resolve.
-      - name: Deploy base and linux_amd64 jars
+      # deploy-file publishes exactly these files and runs outside the project, so
+      # the POM's deploy/Central settings do not interfere. The flattened POM has
+      # no <parent> to resolve.
+      - name: Deploy base, linux_amd64 and windows_amd64 jars
         working-directory: ${{ runner.temp }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -298,14 +308,24 @@ jobs:
             -DrepositoryId=github \
             -DpomFile="$GITHUB_WORKSPACE/JNI/openzl-jni/.flattened-pom.xml" \
             -Dfile="$T/openzl-jni-$V.jar" \
-            -Dfiles="$T/openzl-jni-$V-linux_amd64.jar,$T/openzl-jni-$V-sources.jar,$T/openzl-jni-$V-javadoc.jar" \
-            -Dclassifiers=linux_amd64,sources,javadoc \
-            -Dtypes=jar,jar,jar
+            -Dfiles="$T/openzl-jni-$V-linux_amd64.jar,$T/openzl-jni-$V-windows_amd64.jar,$T/openzl-jni-$V-sources.jar,$T/openzl-jni-$V-javadoc.jar" \
+            -Dclassifiers=linux_amd64,windows_amd64,sources,javadoc \
+            -Dtypes=jar,jar,jar,jar
 
   verify-github-package:
-    name: Verify GitHub package (Linux consumer)
+    name: Verify GitHub package (${{ matrix.name }} consumer)
     needs: publish-github
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            runner: ubuntu-22.04
+            classifier: linux_amd64
+          - name: Windows
+            runner: windows-2022
+            classifier: windows_amd64
     permissions:
       contents: read
       packages: read
@@ -320,8 +340,10 @@ jobs:
       # Behaves like a downstream project: resolves only from GitHub Packages and
       # Maven Central, then compresses with the published native library.
       - name: Resolve and use the published package
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CLASSIFIER: ${{ matrix.classifier }}
         run: |
           version="${GITHUB_REF_NAME#v}"
           mkdir consumer && cd consumer
@@ -347,7 +369,7 @@ jobs:
                 <groupId>io.github.th3n3wn00b</groupId>
                 <artifactId>openzl-jni</artifactId>
                 <version>${version}</version>
-                <classifier>linux_amd64</classifier>
+                <classifier>${CLASSIFIER}</classifier>
               </dependency>
             </dependencies>
           </project>
