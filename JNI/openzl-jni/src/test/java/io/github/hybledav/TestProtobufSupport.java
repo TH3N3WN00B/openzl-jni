@@ -10,6 +10,21 @@ import static org.junit.jupiter.api.Assertions.*;
 public class TestProtobufSupport {
     private static final String MESSAGE_TYPE = SchemaFixtures.MESSAGE_TYPE;
 
+    @Test
+    void sliceBoundsCheckDoesNotOverflow() {
+        // offset + length wraps to a negative int: a naive "offset + length > size" check
+        // accepts it and the native side would read ~2 GB past the array.
+        byte[] payload = new byte[16];
+        assertThrows(IndexOutOfBoundsException.class, () -> OpenZLProtobuf.convert(
+                payload, 1, Integer.MAX_VALUE,
+                OpenZLProtobuf.Protocol.PROTO, OpenZLProtobuf.Protocol.ZL,
+                SchemaFixtures.descriptor()));
+        assertThrows(IndexOutOfBoundsException.class, () -> OpenZLProtobuf.convert(
+                payload, Integer.MAX_VALUE, 1,
+                OpenZLProtobuf.Protocol.PROTO, OpenZLProtobuf.Protocol.ZL,
+                SchemaFixtures.descriptor()));
+    }
+
     static {
         OpenZLProtobuf.registerSchema(SchemaFixtures.descriptorBytes());
     }

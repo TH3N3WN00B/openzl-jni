@@ -201,7 +201,8 @@ public final class OpenZLProtobuf {
         Objects.requireNonNull(inputProtocol, "inputProtocol");
         Objects.requireNonNull(outputProtocol, "outputProtocol");
         Objects.requireNonNull(descriptor, "descriptor");
-        if (offset < 0 || length < 0 || offset + length > payload.length) {
+        // Written so it cannot overflow: offset + length may wrap to a negative int.
+        if (offset < 0 || length < 0 || length > payload.length - offset) {
             throw new IndexOutOfBoundsException(
                     "Invalid offset/length: offset=" + offset + ", length=" + length
                             + ", payloadLength=" + payload.length);

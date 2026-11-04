@@ -2511,7 +2511,8 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLProtobuf_c
         return nullptr;
     }
     jsize payloadLength = env->GetArrayLength(payload);
-    if (offset > payloadLength || offset + length > payloadLength) {
+    // offset + length can overflow jint (undefined behaviour); compare against the rest.
+    if (offset > payloadLength || length > payloadLength - offset) {
         throwIllegalArgument(env, "offset/length exceed payload bounds");
         return nullptr;
     }
