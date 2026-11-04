@@ -80,6 +80,13 @@
 
   (or add `Enable-Native-Access: ALL-UNNAMED` to the manifest of your executable jar). Without it JDK 24/25 print a warning, and future JDKs will refuse to load the library. On JDK 21 the flag is accepted and has no effect.
 - **OpenZL 0.3.0** native code is bundled in the platform classifier jars. Frames written by this release use OpenZL's newest frame format (max version 27); older OpenZL readers may not be able to decode them.
+- **Native platform minimums** (what the bundled libraries are built for):
+
+  | Classifier | Minimum |
+  |---|---|
+  | `linux_amd64` | glibc 2.34 and the libstdc++ of GCC 12 or newer (`GLIBCXX_3.4.30`), e.g. Ubuntu 22.04+, Debian 12+ |
+  | `macos_arm64` | macOS 14 (Sonoma) on Apple silicon |
+  | `windows_amd64` | 64-bit Windows; the C/C++ runtime is linked statically, no extra DLLs needed |
 
 ---
 
