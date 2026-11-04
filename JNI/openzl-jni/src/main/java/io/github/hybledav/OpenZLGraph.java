@@ -10,15 +10,25 @@ import java.util.Locale;
  * values are resolved on the native side so we are resilient to upstream renumbering.
  */
 public enum OpenZLGraph {
+    /** Allow OpenZL to pick the default graph (currently zstd). */
     AUTO(-1, "auto", "Allow OpenZL to pick the default graph (currently zstd)."),
+    /** General purpose LZ77 + entropy combination. */
     ZSTD(0, "zstd", "General purpose LZ77 + entropy combination."),
+    /** Hybrid graph that applies lightweight transforms before entropy coding. */
     GENERIC(1, "generic", "Hybrid graph that applies lightweight transforms before entropy coding."),
+    /** Pipeline specialised for arrays of numeric primitives. */
     NUMERIC(2, "numeric", "Pipeline specialised for arrays of numeric primitives."),
+    /** Passthrough graph: inputs kept verbatim (no compression). */
     STORE(3, "store", "Passthrough graph: inputs kept verbatim (no compression)."),
+    /** Bitpacking graph optimised for values with small effective range. */
     BITPACK(4, "bitpack", "Bitpacking graph optimised for values with small effective range."),
+    /** Finite State Entropy only pipeline. */
     FSE(5, "fse", "Finite State Entropy only pipeline."),
+    /** Huffman entropy coding pipeline. */
     HUFFMAN(6, "huffman", "Huffman entropy coding pipeline."),
+    /** Generic entropy stage without transforms. */
     ENTROPY(7, "entropy", "Generic entropy stage without transforms."),
+    /** Fast path for nearly constant inputs. */
     CONSTANT(8, "constant", "Fast path for nearly constant inputs.");
 
     private final int id;
@@ -40,14 +50,18 @@ public enum OpenZLGraph {
     }
 
     /**
-     * @return Human readable name of the graph.
+     * Human readable name of the graph, e.g. {@code "zstd"}.
+     *
+     * @return the display name
      */
     public String displayName() {
         return displayName;
     }
 
     /**
-     * @return Short description describing what the graph optimises for.
+     * Short description of what the graph optimises for.
+     *
+     * @return the description
      */
     public String description() {
         return description;

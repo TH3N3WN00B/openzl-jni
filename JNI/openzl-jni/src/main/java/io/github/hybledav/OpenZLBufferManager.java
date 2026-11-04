@@ -24,6 +24,11 @@ public final class OpenZLBufferManager implements AutoCloseable {
         this.pool = ThreadLocal.withInitial(PoolState::new);
     }
 
+    /**
+     * Starts configuring a manager (default minimum capacity 64 KiB, alignment 64 bytes).
+     *
+     * @return a new builder
+     */
     public static Builder builder() {
         return new Builder();
     }
@@ -31,6 +36,9 @@ public final class OpenZLBufferManager implements AutoCloseable {
     /**
      * Acquire a direct {@link ByteBuffer} with the given minimum capacity.
      * The buffer is cleared before returning.
+     *
+     * @param minCapacity smallest capacity the caller needs, in bytes
+     * @return a cleared direct buffer from this thread's pool, or a newly allocated one
      */
     public ByteBuffer acquire(int minCapacity) {
         return pool.get().borrow(minCapacity);
@@ -38,6 +46,11 @@ public final class OpenZLBufferManager implements AutoCloseable {
 
     /**
      * Acquire a buffer large enough for compressing an input of {@code inputSize} bytes.
+     *
+     * @param inputSize size of the data that will be compressed, in bytes
+     * @return a cleared direct buffer of at least {@link OpenZLCompressor#maxCompressedSize(int)} bytes
+     * @throws IllegalArgumentException if {@code inputSize} is negative or the bound
+     *         exceeds the maximum ByteBuffer size
      */
     public ByteBuffer acquireForCompression(int inputSize) {
         if (inputSize < 0) {
@@ -49,6 +62,11 @@ public final class OpenZLBufferManager implements AutoCloseable {
 
     /**
      * Acquire a buffer large enough to hold a payload with {@code decompressedSize} bytes.
+     *
+     * @param decompressedSize size of the decompressed payload, in bytes
+     * @return a cleared direct buffer of at least {@code decompressedSize} bytes
+     * @throws IllegalArgumentException if {@code decompressedSize} is negative or exceeds
+     *         the maximum ByteBuffer size
      */
     public ByteBuffer acquireForDecompression(long decompressedSize) {
         if (decompressedSize < 0) {
@@ -60,12 +78,18 @@ public final class OpenZLBufferManager implements AutoCloseable {
     /**
      * Release the buffer so it can be reused by subsequent {@link #acquire(int)} calls.
      * Buffers not originally allocated by this manager are ignored.
+     *
+     * @param buffer a buffer obtained from this manager on the calling thread
      */
     public void release(ByteBuffer buffer) {
         Objects.requireNonNull(buffer, "buffer");
         pool.get().release(buffer);
     }
 
+    /**
+     * Drops the buffers pooled for the calling thread. Pools of other threads are released
+     * when those threads end.
+     */
     @Override
     public void close() {
         PoolState state = pool.get();
@@ -170,22 +194,40 @@ public final class OpenZLBufferManager implements AutoCloseable {
         }
     }
 
+    /** Configures an {@link OpenZLBufferManager}. */
     public static final class Builder {
         private int minimumCapacity = 64 * 1024;
         private int alignment = 64;
 
         private Builder() {}
 
+        /**
+         * Smallest capacity of any buffer the manager allocates.
+         *
+         * @param value capacity in bytes (values below 1 are treated as 1)
+         * @return this builder
+         */
         public Builder minimumCapacity(int value) {
             this.minimumCapacity = value;
             return this;
         }
 
+        /**
+         * Capacities are rounded up to a multiple of this value.
+         *
+         * @param value alignment in bytes (values below 1 are treated as 1)
+         * @return this builder
+         */
         public Builder alignment(int value) {
             this.alignment = value;
             return this;
         }
 
+        /**
+         * Creates the manager.
+         *
+         * @return a new buffer manager
+         */
         public OpenZLBufferManager build() {
             return new OpenZLBufferManager(minimumCapacity, alignment);
         }

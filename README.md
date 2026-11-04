@@ -251,7 +251,7 @@ try (OpenZLCompressor compressor = new OpenZLCompressor()) {
 }
 ```
 
-All level changes are sticky until you call `reset()` or explicitly select a new value, regardless of the active profile.
+The chosen level is kept across `reset()` and profile switches until you select a new value; a newly created `OpenZLCompressor` starts at OpenZL's default (`LEVEL_6`).
 
 ---
 
