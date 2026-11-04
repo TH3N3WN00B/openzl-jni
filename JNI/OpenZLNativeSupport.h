@@ -46,6 +46,9 @@ struct NativeState {
 
     void reset();
     void setGraph(ZL_GraphID graph);
+    // Prepares a pooled state for a new OpenZLCompressor: fresh Compressor, so no
+    // parameters or registered graphs leak from the previous owner.
+    void recycle(ZL_GraphID graph);
 
 private:
     static void expectSuccess(ZL_Report report, const char* action);
@@ -76,6 +79,22 @@ bool ensureDirectRange(JNIEnv* env,
 void throwNew(JNIEnv* env, jclass clazz, const char* message);
 void throwIllegalState(JNIEnv* env, const std::string& message);
 void throwIllegalArgument(JNIEnv* env, const std::string& message);
+
+// OpenZL resolves the parameters of a compression as: CCtx value, else the
+// Compressor value, else the library default (a parameter counts as unset when 0).
+// Defaults therefore belong on the Compressor; setting them on the CCtx would
+// silently override OpenZLCompressor.setParameter() and deserialized compressors.
+// The format version must end up non-zero, otherwise compression fails.
+inline void applyCompressorDefaults(openzl::Compressor& compressor)
+{
+    if (compressor.getParameter(openzl::CParam::CompressionLevel) == 0) {
+        compressor.setParameter(openzl::CParam::CompressionLevel, ZL_COMPRESSIONLEVEL_DEFAULT);
+    }
+    if (compressor.getParameter(openzl::CParam::FormatVersion) == 0) {
+        compressor.setParameter(openzl::CParam::FormatVersion,
+                static_cast<int>(ZL_getDefaultEncodingVersion()));
+    }
+}
 
 // OpenZL >= 0.3.0 refuses to train a compressor whose format version is unset.
 // Mirror the upstream CLI and default to the newest format the library writes.

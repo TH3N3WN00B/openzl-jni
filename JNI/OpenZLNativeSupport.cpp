@@ -83,6 +83,7 @@ NativeState::NativeState(ZL_GraphID graph)
     if (!cctx || !dctx) {
         throw std::bad_alloc();
     }
+    applyCompressorDefaults(compressor);
     applyDefaultParameters();
     configureGraph();
 }
@@ -108,17 +109,12 @@ void NativeState::expectSuccess(ZL_Report report, const char* action)
 
 void NativeState::applyDefaultParameters()
 {
+    // Only context-level behaviour goes here. Compression level and format version
+    // live on the Compressor (see applyCompressorDefaults): a CCtx value would win
+    // over whatever OpenZLCompressor.setParameter() stored there.
     expectSuccess(
             ZL_CCtx_setParameter(cctx, ZL_CParam_stickyParameters, 1),
             "ZL_CCtx_setParameter(stickyParameters)");
-    expectSuccess(
-            ZL_CCtx_setParameter(
-                    cctx, ZL_CParam_compressionLevel, ZL_COMPRESSIONLEVEL_DEFAULT),
-            "ZL_CCtx_setParameter(compressionLevel)");
-    expectSuccess(
-            ZL_CCtx_setParameter(
-                    cctx, ZL_CParam_formatVersion, ZL_getDefaultEncodingVersion()),
-            "ZL_CCtx_setParameter(formatVersion)");
     expectSuccess(
             ZL_DCtx_setParameter(dctx, ZL_DParam_stickyParameters, 1),
             "ZL_DCtx_setParameter(stickyParameters)");
@@ -141,6 +137,18 @@ void NativeState::setGraph(ZL_GraphID graph)
 {
     startingGraph = graph;
     configureGraph();
+}
+
+void NativeState::recycle(ZL_GraphID graph)
+{
+    // reset() keeps the Compressor on purpose (OpenZLCompressor.reset() preserves the
+    // chosen level); a state handed to a *new* OpenZLCompressor must start clean.
+    // ZL_CCtx_resetParameters() inside reset() drops the CCtx's reference to the old
+    // Compressor before configureGraph() binds the new one.
+    compressor = openzl::Compressor();
+    applyCompressorDefaults(compressor);
+    startingGraph = graph;
+    reset();
 }
 
 void NativeState::reset()
@@ -217,8 +225,7 @@ NativeState* acquireState(ZL_GraphID graph)
     if (tlsCachedState != nullptr) {
         state = tlsCachedState;
         tlsCachedState = nullptr;
-        state->reset();
-        state->setGraph(graph);
+        state->recycle(graph);
         return state;
     }
     {
@@ -228,8 +235,7 @@ NativeState* acquireState(ZL_GraphID graph)
         }
     }
     if (state != nullptr) {
-        state->reset();
-        state->setGraph(graph);
+        state->recycle(graph);
         return state;
     }
     state = new NativeState(graph);

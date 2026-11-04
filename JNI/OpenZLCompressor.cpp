@@ -592,6 +592,9 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLCompressor
         auto* profilePtr = it->second.get();
         ZL_GraphID gid = profilePtr->gen(compressor.get(), profilePtr->opaque ? profilePtr->opaque.get() : nullptr, args);
         compressor.selectStartingGraph(gid);
+        // Level and format version come from the Compressor so that a level stored in
+        // it (e.g. by a serialized/trained compressor) is honoured; see applyCompressorDefaults.
+        applyCompressorDefaults(compressor);
 
         // Create a temporary C context and compress
         ZL_CCtx* cctx = ZL_CCtx_create();
@@ -600,27 +603,13 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLCompressor
             throwNew(env, JniRefs().outOfMemoryError, "Failed to create C context");
             return nullptr;
         }
-        // Apply default C context parameters similar to NativeState::applyDefaultParameters
+        // Same context-level defaults as NativeState::applyDefaultParameters
         ZL_Report rp;
         rp = ZL_CCtx_setParameter(cctx, ZL_CParam_stickyParameters, 1);
         if (ZL_isError(rp)) {
             ZL_CCtx_free(cctx);
             env->ReleasePrimitiveArrayCritical(input, srcPtr, JNI_ABORT);
             throwIllegalState(env, "Failed to set cctx parameter stickyParameters");
-            return nullptr;
-        }
-        rp = ZL_CCtx_setParameter(cctx, ZL_CParam_compressionLevel, ZL_COMPRESSIONLEVEL_DEFAULT);
-        if (ZL_isError(rp)) {
-            ZL_CCtx_free(cctx);
-            env->ReleasePrimitiveArrayCritical(input, srcPtr, JNI_ABORT);
-            throwIllegalState(env, "Failed to set cctx parameter compressionLevel");
-            return nullptr;
-        }
-        rp = ZL_CCtx_setParameter(cctx, ZL_CParam_formatVersion, ZL_getDefaultEncodingVersion());
-        if (ZL_isError(rp)) {
-            ZL_CCtx_free(cctx);
-            env->ReleasePrimitiveArrayCritical(input, srcPtr, JNI_ABORT);
-            throwIllegalState(env, "Failed to set cctx parameter formatVersion");
             return nullptr;
         }
 
@@ -725,6 +714,9 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLCompressor
         // Attempt deserialize
         std::string_view sv(reinterpret_cast<const char*>(serPtr), static_cast<size_t>(serLen));
         compressor.deserialize(openzl::poly::string_view(sv.data(), sv.size()));
+        // Level and format version come from the Compressor so that a level stored in
+        // it (e.g. by a serialized/trained compressor) is honoured; see applyCompressorDefaults.
+        applyCompressorDefaults(compressor);
 
         // Use compressor via a temporary C ctx
         ZL_CCtx* cctx = ZL_CCtx_create();
@@ -734,7 +726,7 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLCompressor
             throwNew(env, JniRefs().outOfMemoryError, "Failed to create C context");
             return nullptr;
         }
-        // Ensure C context has sensible defaults
+        // Same context-level defaults as NativeState::applyDefaultParameters
         ZL_Report rp2;
         rp2 = ZL_CCtx_setParameter(cctx, ZL_CParam_stickyParameters, 1);
         if (ZL_isError(rp2)) {
@@ -742,22 +734,6 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLCompressor
             env->ReleasePrimitiveArrayCritical(serialized, serPtr, JNI_ABORT);
             env->ReleasePrimitiveArrayCritical(input, inPtr, JNI_ABORT);
             throwIllegalState(env, "Failed to set cctx parameter stickyParameters");
-            return nullptr;
-        }
-        rp2 = ZL_CCtx_setParameter(cctx, ZL_CParam_compressionLevel, ZL_COMPRESSIONLEVEL_DEFAULT);
-        if (ZL_isError(rp2)) {
-            ZL_CCtx_free(cctx);
-            env->ReleasePrimitiveArrayCritical(serialized, serPtr, JNI_ABORT);
-            env->ReleasePrimitiveArrayCritical(input, inPtr, JNI_ABORT);
-            throwIllegalState(env, "Failed to set cctx parameter compressionLevel");
-            return nullptr;
-        }
-        rp2 = ZL_CCtx_setParameter(cctx, ZL_CParam_formatVersion, ZL_getDefaultEncodingVersion());
-        if (ZL_isError(rp2)) {
-            ZL_CCtx_free(cctx);
-            env->ReleasePrimitiveArrayCritical(serialized, serPtr, JNI_ABORT);
-            env->ReleasePrimitiveArrayCritical(input, inPtr, JNI_ABORT);
-            throwIllegalState(env, "Failed to set cctx parameter formatVersion");
             return nullptr;
         }
 

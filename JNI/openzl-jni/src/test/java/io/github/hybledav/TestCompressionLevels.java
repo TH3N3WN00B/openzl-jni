@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 class TestCompressionLevels {
 
     private static final int CPARAM_COMPRESSION_LEVEL = 2;
+    private static final int CPARAM_FORMAT_VERSION = 4;
 
     @Test
     void setCompressionLevelReflectsInNativeParameter() {
@@ -58,6 +59,51 @@ class TestCompressionLevels {
             assertEquals(OpenZLCompressionLevel.LEVEL_14,
                     compressor.getCompressionLevel(),
                     "Configuring profile should not reset compression level");
+        }
+    }
+
+    @Test
+    void compressionLevelChangesCompressedOutput() {
+        byte[] payload = generateLogPayload(1 << 20, 42);
+        byte[] fast;
+        byte[] strong;
+        try (OpenZLCompressor compressor = new OpenZLCompressor(OpenZLGraph.ZSTD)) {
+            compressor.setCompressionLevel(OpenZLCompressionLevel.LEVEL_1);
+            fast = compressor.compress(payload);
+            assertArrayEquals(payload, compressor.decompress(fast));
+        }
+        try (OpenZLCompressor compressor = new OpenZLCompressor(OpenZLGraph.ZSTD)) {
+            compressor.setCompressionLevel(OpenZLCompressionLevel.LEVEL_19);
+            strong = compressor.compress(payload);
+            assertArrayEquals(payload, compressor.decompress(strong));
+        }
+        assertTrue(strong.length < fast.length,
+                () -> String.format(Locale.ROOT,
+                        "LEVEL_19 should compress smaller than LEVEL_1 (level1=%d, level19=%d)",
+                        fast.length, strong.length));
+    }
+
+    @Test
+    void formatVersionParameterIsApplied() {
+        byte[] payload = generateLogPayload(64 * 1024, 7);
+        int requested = 24;
+        try (OpenZLCompressor compressor = new OpenZLCompressor(OpenZLGraph.ZSTD)) {
+            compressor.setParameter(CPARAM_FORMAT_VERSION, requested);
+            byte[] compressed = compressor.compress(payload);
+            assertEquals(requested, compressor.inspect(compressed).formatVersion(),
+                    "Frame should be written with the requested format version");
+            assertArrayEquals(payload, compressor.decompress(compressed));
+        }
+    }
+
+    @Test
+    void newCompressorStartsAtDefaultLevelAfterPooledStateReuse() {
+        try (OpenZLCompressor previous = new OpenZLCompressor()) {
+            previous.setCompressionLevel(OpenZLCompressionLevel.LEVEL_18);
+        }
+        try (OpenZLCompressor next = new OpenZLCompressor()) {
+            assertEquals(OpenZLCompressionLevel.LEVEL_6, next.getCompressionLevel(),
+                    "A new compressor must not inherit the level of a closed one (OpenZL default is 6)");
         }
     }
 
@@ -206,5 +252,19 @@ class TestCompressionLevels {
             }
         }
         return payload;
+    }
+
+    /** Text log lines: compressible, but with enough entropy that zstd levels differ. */
+    private static byte[] generateLogPayload(int size, long seed) {
+        String[] words = {"alpha", "beta", "gamma", "delta", "error", "info", "warn", "request", "user", "latency"};
+        Random rng = new Random(seed);
+        StringBuilder sb = new StringBuilder(size + 64);
+        while (sb.length() < size) {
+            sb.append(rng.nextInt(100_000)).append(' ')
+                    .append(words[rng.nextInt(words.length)]).append(' ')
+                    .append(words[rng.nextInt(words.length)]).append(" id=")
+                    .append(Long.toHexString(rng.nextLong() & 0xFFFFFFL)).append('\n');
+        }
+        return sb.toString().getBytes(java.nio.charset.StandardCharsets.US_ASCII);
     }
 }
