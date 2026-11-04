@@ -6,9 +6,17 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      publish:
+        description: 'Publish the release to Maven Central (otherwise only build and test)'
+        type: boolean
+        default: false
       version:
-        description: 'Release version (e.g. 0.3.0)'
-        required: true
+        description: 'Release version to publish (e.g. 0.3.0); required when publishing'
+        required: false
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   REVISION: 0.3.0
@@ -54,13 +62,21 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build
+          sudo apt-get install -y ninja-build
+          cmake --version | head -n 1
 
       - name: Install build dependencies (macOS)
         if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+          HOMEBREW_NO_INSTALL_UPGRADE: 1
+          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
         run: |
-          brew update
-          brew install cmake ninja || true
+          # The runner image already ships CMake and Ninja. Avoid `brew update`/upgrades:
+          # Homebrew no longer has bottles for macOS 14, so it rebuilt tools from source.
+          command -v ninja >/dev/null || brew install ninja
+          cmake --version | head -n 1
+          echo "ninja $(ninja --version)"
 
       - name: Install MinGW toolchain (Windows)
         if: runner.os == 'Windows'
@@ -84,7 +100,7 @@ jobs:
         shell: bash
         run: |
           if [ "${{ runner.os }}" = "Windows" ]; then
-            cmake --build cmake_build --target openzl_jni -- -j 2
+            cmake --build cmake_build --target openzl_jni -- -j "$(nproc)"
           else
             cmake --build cmake_build --target openzl_jni
           fi
@@ -138,7 +154,9 @@ jobs:
         shell: bash
         run: |
           java -version
-          mvn -ntp -f JNI/pom.xml -pl openzl-jni -am             -Drevision=${REVISION}             -Dgpg.skip=true -Djacoco.skip=true test
+          mvn -ntp -f JNI/pom.xml -pl openzl-jni -am \
+            -Drevision=${REVISION} \
+            -Dgpg.skip=true -Djacoco.skip=true test
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
@@ -147,7 +165,7 @@ jobs:
           retention-days: 7
           path: |
             JNI/openzl-jni/target/*${{ matrix.classifier }}*.jar
-            JNI/openzl-jni/target/openzl-jni-${REVISION}.jar
+            JNI/openzl-jni/target/openzl-jni-${{ env.REVISION }}.jar
             JNI/openzl-jni/src/main/resources/lib/${{ matrix.classifier }}/**
 
   coverage:
@@ -163,22 +181,23 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build
-
-      - name: Configure CMake
-        run: cmake -S . -B cmake_build -G Ninja -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build native library
-        run: cmake --build cmake_build --target openzl_jni
+      - name: Download Linux native library
+        uses: actions/download-artifact@v8
+        with:
+          name: openzl-jni-linux_amd64
+          path: linux-artifact
 
       - name: Stage native artifact
         run: |
           dest="JNI/openzl-jni/src/main/resources/lib/linux_amd64"
           mkdir -p "$dest"
-          cp "cmake_build/cli/libopenzl_jni.so" "$dest/"
+          lib=$(find linux-artifact -type f -name libopenzl_jni.so | head -n 1)
+          if [ -z "$lib" ]; then
+            echo "::error::libopenzl_jni.so not found in the linux_amd64 build artifact"
+            find linux-artifact -maxdepth 6
+            exit 1
+          fi
+          cp "$lib" "$dest/"
 
       - name: Generate coverage report
         run: |
@@ -228,57 +247,39 @@ jobs:
     needs:
       - build
       - coverage
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
     runs-on: ubuntu-22.04
     env:
       MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
       MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
-      GPG_KEY_ID: ${{ secrets.GPG_KEY_ID || '' }}
     steps:
       - name: Check required parameters
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          HAS_GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY != '' }}
         run: |
-          if [ -z "${{ github.event.inputs.version }}" ]; then
-            echo "version input is required when manually publishing."
+          missing=()
+          [ -n "${RELEASE_VERSION}" ] || missing+=("input 'version'")
+          [ -n "${MAVEN_USERNAME}" ] || missing+=("secret MAVEN_USERNAME")
+          [ -n "${MAVEN_PASSWORD}" ] || missing+=("secret MAVEN_PASSWORD")
+          [ "${HAS_GPG_KEY}" = "true" ] || missing+=("secret GPG_PRIVATE_KEY")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error title=Publishing is not configured::Missing ${missing[*]}"
             exit 1
           fi
+
       - uses: actions/checkout@v7
 
-      - name: Configure Maven settings
-        run: |
-          mkdir -p "${HOME}/.m2"
-          cat <<EOF > "${HOME}/.m2/settings.xml"
-          <settings>
-            <servers>
-              <server>
-                <id>central</id>
-                <username>${MAVEN_USERNAME}</username>
-                <password>${MAVEN_PASSWORD}</password>
-              </server>
-            </servers>
-            <profiles>
-              <profile>
-                <id>ossrh-release</id>
-                <properties>
-                  <gpg.executable>gpg</gpg.executable>
-                  <gpg.keyname>${GPG_KEY_ID}</gpg.keyname>
-                </properties>
-              </profile>
-            </profiles>
-            <activeProfiles>
-              <activeProfile>ossrh-release</activeProfile>
-            </activeProfiles>
-          </settings>
-          EOF
-
+      # setup-java writes ~/.m2/settings.xml (server "central") and imports the signing key.
       - name: Set up Temurin JDK for publishing
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
           server-id: central
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_PASSWORD
-          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY || '' }}
+          server-username-env-var: MAVEN_USERNAME
+          server-password-env-var: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
 
       - name: Download classifier artifacts
         uses: actions/download-artifact@v8
@@ -290,13 +291,13 @@ jobs:
       - name: Set release version in POM
         run: |
           mvn -ntp -f JNI/pom.xml versions:set \
-            -DnewVersion=${{ github.event.inputs.version }} \
+            -DnewVersion=${{ inputs.version }} \
             -DgenerateBackupPoms=false
 
       - name: Build and publish release
         shell: bash
         env:
-          RELEASE_VERSION: ${{ github.event.inputs.version }}
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           classifiers=(linux_amd64 macos_arm64 windows_amd64)
@@ -342,6 +343,6 @@ jobs:
       - name: Upload release bundle
         uses: actions/upload-artifact@v7
         with:
-          name: openzl-jni-release-${{ github.event.inputs.version }}
+          name: openzl-jni-release-${{ inputs.version }}
           retention-days: 14
           path: release-packages/**

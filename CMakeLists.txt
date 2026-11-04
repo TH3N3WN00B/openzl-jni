@@ -51,6 +51,15 @@ endif()
 
 find_package(JNI REQUIRED)
 find_package(protobuf CONFIG REQUIRED)
+# protobuf v32 (pinned by OpenZL) calls its own deprecated FieldOptions::weak(),
+# which floods every CI log with third-party warnings we cannot fix here.
+if(NOT MSVC)
+    foreach(OPENZL_PROTOBUF_TARGET libprotobuf libprotoc)
+        if(TARGET ${OPENZL_PROTOBUF_TARGET})
+            target_compile_options(${OPENZL_PROTOBUF_TARGET} PRIVATE -Wno-deprecated-declarations)
+        endif()
+    endforeach()
+endif()
 if(TARGET custom_parsers AND TARGET pytorch_model_parser)
     target_link_libraries(custom_parsers pytorch_model_parser)
 endif()
