@@ -36,6 +36,8 @@ if(WIN32 AND TARGET xgboost_external AND TARGET xgboost AND TARGET dmlc)
     # step must not claim it as its OUTPUT too: Ninja rejects two rules generating the
     # same file ("multiple rules generate .../xgboost.a"). Track the copy with a stamp.
     set(OPENZL_XGBOOST_STAMP_DIR "${CMAKE_CURRENT_BINARY_DIR}/openzl_xgboost_imports")
+    # Ninja creates output directories on its own; the Makefile generators do not.
+    file(MAKE_DIRECTORY "${OPENZL_XGBOOST_STAMP_DIR}")
     foreach(OPENZL_XGBOOST_TARGET xgboost dmlc)
         get_target_property(OPENZL_XGBOOST_LOCATION ${OPENZL_XGBOOST_TARGET} IMPORTED_LOCATION)
         get_filename_component(OPENZL_XGBOOST_LIB_DIR "${OPENZL_XGBOOST_LOCATION}" DIRECTORY)
