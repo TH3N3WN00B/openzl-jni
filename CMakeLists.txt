@@ -32,19 +32,25 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(openzl)
 
 if(WIN32 AND TARGET xgboost_external AND TARGET xgboost AND TARGET dmlc)
+    # The archive path is already a BUILD_BYPRODUCT of xgboost_external, so the copy
+    # step must not claim it as its OUTPUT too: Ninja rejects two rules generating the
+    # same file ("multiple rules generate .../xgboost.a"). Track the copy with a stamp.
+    set(OPENZL_XGBOOST_STAMP_DIR "${CMAKE_CURRENT_BINARY_DIR}/openzl_xgboost_imports")
     foreach(OPENZL_XGBOOST_TARGET xgboost dmlc)
         get_target_property(OPENZL_XGBOOST_LOCATION ${OPENZL_XGBOOST_TARGET} IMPORTED_LOCATION)
         get_filename_component(OPENZL_XGBOOST_LIB_DIR "${OPENZL_XGBOOST_LOCATION}" DIRECTORY)
+        set(OPENZL_XGBOOST_STAMP "${OPENZL_XGBOOST_STAMP_DIR}/${OPENZL_XGBOOST_TARGET}.stamp")
         add_custom_command(
-            OUTPUT "${OPENZL_XGBOOST_LOCATION}"
+            OUTPUT "${OPENZL_XGBOOST_STAMP}"
             COMMAND ${CMAKE_COMMAND}
                 -DOUTPUT_FILE=${OPENZL_XGBOOST_LOCATION}
                 -DLIB_DIR=${OPENZL_XGBOOST_LIB_DIR}
                 -DLIB_NAME=${OPENZL_XGBOOST_TARGET}
                 -P ${PROJECT_SOURCE_DIR}/cmake/copy_first_existing.cmake
+            COMMAND ${CMAKE_COMMAND} -E touch "${OPENZL_XGBOOST_STAMP}"
             DEPENDS xgboost_external
             VERBATIM)
-        list(APPEND OPENZL_XGBOOST_IMPORTS "${OPENZL_XGBOOST_LOCATION}")
+        list(APPEND OPENZL_XGBOOST_IMPORTS "${OPENZL_XGBOOST_STAMP}")
     endforeach()
     add_custom_target(openzl_xgboost_imports DEPENDS ${OPENZL_XGBOOST_IMPORTS})
 endif()
