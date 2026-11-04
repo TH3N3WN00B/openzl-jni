@@ -28,6 +28,11 @@ jobs:
     name: Build ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.allow-failure || false }}
+    env:
+      # CMake (>= 3.17) reads these as defaults, so they also reach the sub-builds
+      # OpenZL runs through ExternalProject (xgboost), not only our own project.
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
     strategy:
       fail-fast: false
       matrix:
@@ -53,21 +58,31 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+          cache: maven
+
+      # Most of the native build is OpenZL, protobuf, abseil and xgboost, which only
+      # change when their pinned versions do: a warm ccache turns ~10-17 min into a few.
+      - name: Cache native compilation (ccache)
+        uses: hendrikmuhs/ccache-action@v1.2.24
+        with:
+          key: native-${{ matrix.classifier }}
+          max-size: 2G
 
       - name: Install build dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build
+          command -v ninja >/dev/null || { sudo apt-get update && sudo apt-get install -y ninja-build; }
           cmake --version | head -n 1
 
-      - name: Install MinGW toolchain (Windows)
+      # The windows-2022 image already ships the MinGW-w64 GCC (C:\mingw64) and CMake the
+      # build uses; installing another MinGW with choco cost ~2.5 min and was not used.
+      - name: Show toolchain (Windows)
         if: runner.os == 'Windows'
-        shell: powershell
+        shell: bash
         run: |
-          choco install mingw --yes
-          choco install make --yes
-          choco install cmake --yes
+          command -v g++ mingw32-make cmake
+          g++ --version | head -n 1
+          cmake --version | head -n 1
 
       - name: Configure CMake
         shell: bash
@@ -87,6 +102,10 @@ jobs:
           else
             cmake --build cmake_build --target openzl_jni
           fi
+
+      - name: ccache statistics
+        shell: bash
+        run: ccache --show-stats || true
 
       - name: Stage native artifact
         shell: bash
@@ -163,6 +182,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+          cache: maven
 
       - name: Download Linux native library
         uses: actions/download-artifact@v8
@@ -246,6 +266,7 @@ jobs:
           distribution: temurin
           java-version: 21
           server-id: github
+          cache: maven
 
       - name: Check tag matches project version
         run: |
