@@ -6,13 +6,13 @@
     <parent>
         <groupId>io.github.th3n3wn00b</groupId>
         <artifactId>openzl-jni-parent</artifactId>
-        <version>0.3.2</version>
+        <version>0.3.3</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <groupId>io.github.th3n3wn00b</groupId>
     <artifactId>openzl-jni</artifactId>
-    <version>0.3.2</version>
+    <version>0.3.3</version>
     <packaging>jar</packaging>
 
     <name>OpenZL JNI Bindings</name>

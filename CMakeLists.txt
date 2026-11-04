@@ -164,9 +164,11 @@ endif()
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(openzl_jni PRIVATE -static-libgcc -static-libstdc++ -static)
 endif()
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT APPLE))
     # The statically linked OpenZL/protobuf/abseil debug info makes the JNI
-    # library ~480 MB on MinGW; strip it for the artifacts we ship.
+    # library ~480 MB on MinGW and ~220 MB with clang on FreeBSD; strip it for the
+    # artifacts we ship. Not on Apple: ld64 keeps debug info out of the dylib anyway
+    # and only warns that -s is obsolete.
     target_link_options(openzl_jni PRIVATE $<$<CONFIG:Release,MinSizeRel>:-s>)
 endif()
 if(TARGET openzl_xgboost_imports)

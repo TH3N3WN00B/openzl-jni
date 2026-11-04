@@ -13,7 +13,7 @@ on:
         type: boolean
         default: false
       version:
-        description: 'Release version to publish (e.g. 0.3.2); required when publishing'
+        description: 'Release version to publish (e.g. 0.3.3); required when publishing'
         required: false
 
 concurrency:
@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  REVISION: 0.3.2
+  REVISION: 0.3.3
 
 jobs:
   build:
@@ -318,7 +318,13 @@ jobs:
               exit 1
             fi
             cp "$lib" "$dest/"
-            echo "staged ${classifier}: $(wc -c < "$dest/${lib_name}") bytes"
+            size=$(wc -c < "$dest/${lib_name}")
+            echo "staged ${classifier}: ${size} bytes"
+            # Stripped libraries are ~16-22 MB; ~200 MB+ means debug info was shipped.
+            if [ "$size" -gt 104857600 ]; then
+              echo "::error::${classifier}/${lib_name} is ${size} bytes: it was not stripped"
+              exit 1
+            fi
           done
 
       - name: Package

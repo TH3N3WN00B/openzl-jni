@@ -44,13 +44,13 @@
      <dependency>
          <groupId>io.github.th3n3wn00b</groupId>
          <artifactId>openzl-jni</artifactId>
-         <version>0.3.2</version>
+         <version>0.3.3</version>
      </dependency>
 
      <dependency>
          <groupId>io.github.th3n3wn00b</groupId>
          <artifactId>openzl-jni</artifactId>
-         <version>0.3.2</version>
+         <version>0.3.3</version>
          <classifier>linux_amd64</classifier>
      </dependency>
      ```
@@ -321,7 +321,7 @@ mvn -f JNI/pom.xml -pl openzl-jni -am clean package
 Push a tag `vX.Y.Z` equal to the project version (`<version>` in `JNI/pom.xml`):
 
 ```bash
-git tag v0.3.2 && git push origin v0.3.2
+git tag v0.3.3 && git push origin v0.3.3
 ```
 
 CI builds and tests every platform (Linux and Windows on each push; macOS, FreeBSD and illumos for release tags, through `.github/workflows/platforms.yml`), then publishes the base jar, the six platform jars, sources and javadoc to GitHub Packages. Final jobs resolve them from a fresh consumer project on Linux, Windows, macOS arm64/x86_64, FreeBSD 15.1 and illumos and compress with them. GitHub Packages does not accept re-publishing a version: bump the version for the next release.
