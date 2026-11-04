@@ -5,6 +5,12 @@ name: Platform probe
 # Results decide which classifiers the release pipeline will publish.
 on:
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: 'Which platforms to probe'
+        type: choice
+        default: all
+        options: [all, macos, freebsd, illumos]
 
 concurrency:
   group: platforms-${{ github.ref }}
@@ -13,6 +19,7 @@ concurrency:
 jobs:
   macos:
     name: macOS ${{ matrix.name }}
+    if: inputs.platforms == 'all' || inputs.platforms == 'macos'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     continue-on-error: true
@@ -83,6 +90,7 @@ jobs:
 
   freebsd:
     name: FreeBSD ${{ matrix.release }} (amd64)
+    if: inputs.platforms == 'all' || inputs.platforms == 'freebsd'
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     continue-on-error: true
@@ -129,6 +137,7 @@ jobs:
 
   illumos:
     name: illumos / OmniOS ${{ matrix.release }} (SunOS)
+    if: inputs.platforms == 'all' || inputs.platforms == 'illumos'
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     continue-on-error: true
@@ -150,7 +159,7 @@ jobs:
             uname -a
             pkg set-publisher -O https://pkg.omnios.org/${{ matrix.release == 'r151054-build' && 'r151054' || matrix.release }}/extra extra.omnios
             # `pkg install` is all-or-nothing: install each group on its own.
-            pkg install runtime/java/openjdk21 || test $? -eq 4
+            pkg install runtime/java/openjdk21 developer/versioning/git || test $? -eq 4
             pkg install ooce/developer/cmake ooce/developer/ninja || test $? -eq 4
             # OmniOS has no Maven package: use the official binary distribution.
             v=3.9.16
