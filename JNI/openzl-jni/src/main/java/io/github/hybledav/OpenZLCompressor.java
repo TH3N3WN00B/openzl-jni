@@ -441,9 +441,36 @@ public class OpenZLCompressor implements AutoCloseable {
     private static native byte[][] trainNative(String profileName, byte[][] inputs,
             int maxTimeSecs, int threads, int numSamples, boolean pareto);
 
-    // Helpers for tests: compress using a profile (untrained) and using a serialized (trained) compressor
-    public static native byte[] compressWithProfileNative(String profileName, byte[] input);
-    public static native byte[] compressWithSerializedNative(String profileName, byte[] serializedCompressor, byte[] input);
+    /**
+     * One-shot compression of {@code input} with the default compressor of a profile.
+     * Loads the native library itself, so it can be the first OpenZL call in the JVM.
+     *
+     * @param profileName name of an OpenZL profile (see {@link #listProfiles()})
+     * @param input bytes to compress
+     * @return an OpenZL frame
+     */
+    public static byte[] compressWithProfileNative(String profileName, byte[] input) {
+        OpenZLNative.load();
+        return compressWithProfileNative0(profileName, input);
+    }
+
+    /**
+     * One-shot compression of {@code input} with a serialized (e.g. trained) compressor.
+     * Loads the native library itself, so it can be the first OpenZL call in the JVM.
+     *
+     * @param profileName profile whose components the serialized compressor depends on
+     * @param serializedCompressor a compressor as returned by {@link #train} or {@link #trainFromDirectory}
+     * @param input bytes to compress
+     * @return an OpenZL frame
+     */
+    public static byte[] compressWithSerializedNative(String profileName, byte[] serializedCompressor, byte[] input) {
+        OpenZLNative.load();
+        return compressWithSerializedNative0(profileName, serializedCompressor, input);
+    }
+
+    // Public static entry points must call OpenZLNative.load() before reaching a native method.
+    private static native byte[] compressWithProfileNative0(String profileName, byte[] input);
+    private static native byte[] compressWithSerializedNative0(String profileName, byte[] serializedCompressor, byte[] input);
 
     public static byte[][] train(String profileName, byte[][] inputs, TrainOptions opts) {
         OpenZLNative.load();

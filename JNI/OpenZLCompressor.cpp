@@ -550,7 +550,7 @@ cleanup:
 }
 
 // Compress a single input using the given profile (untrained/default compressor)
-extern "C" JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLCompressor_compressWithProfileNative(JNIEnv* env,
+extern "C" JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLCompressor_compressWithProfileNative0(JNIEnv* env,
         jclass,
         jstring profileName,
         jbyteArray input)
@@ -653,7 +653,7 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLCompressor
 // Compress a single input using a serialized compressor blob. The first jstring is the profile name
 // (used as a hint to initialize necessary components before deserializing), second arg is serialized bytes,
 // third is the input.
-extern "C" JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLCompressor_compressWithSerializedNative(JNIEnv* env,
+extern "C" JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLCompressor_compressWithSerializedNative0(JNIEnv* env,
         jclass,
         jstring profileName,
         jbyteArray serialized,

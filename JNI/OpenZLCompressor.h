@@ -48,9 +48,9 @@ JNIEXPORT jobjectArray JNICALL Java_io_github_hybledav_OpenZLCompressor_trainNat
 JNIEXPORT jobjectArray JNICALL Java_io_github_hybledav_OpenZLCompressor_trainFromDirectoryNative(JNIEnv*, jclass,
         jstring, jstring, jint, jint, jint, jboolean);
 
-JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLCompressor_compressWithProfileNative(JNIEnv*, jclass,
+JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLCompressor_compressWithProfileNative0(JNIEnv*, jclass,
         jstring, jbyteArray);
-JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLCompressor_compressWithSerializedNative(JNIEnv*, jclass,
+JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLCompressor_compressWithSerializedNative0(JNIEnv*, jclass,
         jstring, jbyteArray, jbyteArray);
 
 JNIEXPORT jbyteArray JNICALL Java_io_github_hybledav_OpenZLSddl_compileNative(JNIEnv*, jclass, jstring, jboolean, jint);
