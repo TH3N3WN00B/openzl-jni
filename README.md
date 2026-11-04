@@ -249,6 +249,20 @@ try {
 }
 ```
 
+Load a trained compressor into an instance and reuse it for every call:
+
+```java
+byte[] trained = Files.readAllBytes(Path.of("trained-candidate-0.bin"));
+try (OpenZLCompressor compressor = new OpenZLCompressor()) {
+    compressor.configureSerialized(trained);                 // CSV/Parquet components are registered automatically
+    // compressor.configureSerialized(OpenZLProfile.SERIAL, trained); // when trained from another profile
+    byte[] compressed = compressor.compress(payload);
+    byte[] restored = compressor.decompress(compressed);
+}
+```
+
+`OpenZLCompressor.compressWithSerializedNative(profile, trained, input)` gives the same bytes, but rebuilds the compressor and its context on every call; for small messages the loaded instance is markedly faster (~25–30 % for 4 KB inputs).
+
 ## Planned features
 
 See [TODO.md](TODO.md) for planned features and improvements.

@@ -86,6 +86,7 @@ public class OpenZLCompressor implements AutoCloseable {
     private native void destroyCompressor();
     private native void configureSddlNative(byte[] compiledDescription);
     private native void configureProfileNative(String profileName, String[] keys, String[] values);
+    private native void configureSerializedNative(String profileName, byte[] serializedCompressor);
 
     public int compress(ByteBuffer src, ByteBuffer dst) {
         requireDirect(src, "src");
@@ -177,6 +178,46 @@ public class OpenZLCompressor implements AutoCloseable {
             throw new IllegalArgumentException("compiledDescription must not be empty");
         }
         configureSddlNative(compiledDescription);
+    }
+
+    /**
+     * Loads a serialized compressor, typically one produced by {@link #train} or
+     * {@link #trainFromDirectory}, so that this instance compresses with it.
+     *
+     * <p>Unlike {@link #compressWithSerializedNative}, which rebuilds the compressor and a
+     * compression context on every call, the loaded compressor and context are reused for
+     * every subsequent {@code compress} call on this instance.
+     *
+     * <p>The serialized compressor replaces the current configuration, including the
+     * compression level it was trained with; call {@link #setCompressionLevel} afterwards
+     * to override it. Components of the built-in CSV and Parquet parsers are registered
+     * automatically; use {@link #configureSerialized(OpenZLProfile, byte[])} when the
+     * compressor was trained from another profile with custom components.
+     *
+     * @param serializedCompressor serialized compressor bytes
+     * @throws IllegalArgumentException if the bytes are not a loadable compressor; the
+     *         previous configuration is kept
+     */
+    public void configureSerialized(byte[] serializedCompressor) {
+        ensureOpen();
+        Objects.requireNonNull(serializedCompressor, "serializedCompressor");
+        configureSerializedNative(null, serializedCompressor);
+    }
+
+    /**
+     * Same as {@link #configureSerialized(byte[])}, registering the components of
+     * {@code profile} first (the profile the compressor was trained from).
+     *
+     * @param profile profile the serialized compressor was trained from
+     * @param serializedCompressor serialized compressor bytes
+     * @throws IllegalArgumentException if the bytes are not a loadable compressor; the
+     *         previous configuration is kept
+     */
+    public void configureSerialized(OpenZLProfile profile, byte[] serializedCompressor) {
+        ensureOpen();
+        Objects.requireNonNull(profile, "profile");
+        Objects.requireNonNull(serializedCompressor, "serializedCompressor");
+        configureSerializedNative(profile.profileName(), serializedCompressor);
     }
 
     public void configureProfile(OpenZLProfile profile) {

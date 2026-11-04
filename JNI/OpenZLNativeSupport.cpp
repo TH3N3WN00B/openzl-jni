@@ -1,4 +1,5 @@
 #include "OpenZLNativeSupport.h"
+#include "openzl/zl_reflection.h"
 
 #include <array>
 #include <cstdio>
@@ -148,6 +149,20 @@ void NativeState::recycle(ZL_GraphID graph)
     compressor = openzl::Compressor();
     applyCompressorDefaults(compressor);
     startingGraph = graph;
+    reset();
+}
+
+void NativeState::loadCompressor(openzl::Compressor&& loaded)
+{
+    ZL_GraphID graph{};
+    if (!ZL_Compressor_getStartingGraphID(loaded.get(), &graph)) {
+        throw std::runtime_error("serialized compressor has no starting graph");
+    }
+    applyCompressorDefaults(loaded);
+    compressor = std::move(loaded);
+    startingGraph = graph;
+    // Same sequence as recycle(): reset() clears the CCtx's pointer to the old
+    // Compressor before configureGraph() binds the new one.
     reset();
 }
 

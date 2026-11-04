@@ -41,6 +41,7 @@ JNIEXPORT jlongArray JNICALL Java_io_github_hybledav_OpenZLCompressor_describeFr
 JNIEXPORT jlongArray JNICALL Java_io_github_hybledav_OpenZLCompressor_describeFrameDirectNative(JNIEnv*, jobject, jobject, jint, jint);
 JNIEXPORT void JNICALL Java_io_github_hybledav_OpenZLCompressor_configureSddlNative(JNIEnv*, jobject, jbyteArray);
 JNIEXPORT void JNICALL Java_io_github_hybledav_OpenZLCompressor_configureProfileNative(JNIEnv*, jobject, jstring, jobjectArray, jobjectArray);
+JNIEXPORT void JNICALL Java_io_github_hybledav_OpenZLCompressor_configureSerializedNative(JNIEnv*, jobject, jstring, jbyteArray);
 JNIEXPORT void JNICALL Java_io_github_hybledav_OpenZLCompressor_setDataArenaNative(JNIEnv*, jobject, jint);
 JNIEXPORT jobjectArray JNICALL Java_io_github_hybledav_OpenZLCompressor_listProfilesNative(JNIEnv*, jclass);
 JNIEXPORT jobjectArray JNICALL Java_io_github_hybledav_OpenZLCompressor_trainNative(JNIEnv*, jclass,

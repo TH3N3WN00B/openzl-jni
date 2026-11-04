@@ -5,6 +5,7 @@
 #include "openzl/zl_compress.h"
 #include "cli/utils/compress_profiles.h"
 #include "cli/utils/util.h"
+#include "custom_parsers/dependency_registration.h"
 #include "custom_parsers/sddl/sddl_profile.h"
 #include "tools/sddl/compiler/Compiler.h"
 #include "tools/sddl/compiler/Exception.h"
@@ -367,6 +368,73 @@ extern "C" JNIEXPORT void JNICALL Java_io_github_hybledav_OpenZLCompressor_confi
     }
 
     state->setGraph(ZL_RES_value(result));
+}
+
+// Loads a serialized (e.g. trained) compressor into this instance so it can be reused
+// across calls, instead of rebuilding compressor + context on every
+// compressWithSerializedNative() call. profileName may be null: components of the
+// built-in custom parsers are then registered from the serialized description itself.
+extern "C" JNIEXPORT void JNICALL Java_io_github_hybledav_OpenZLCompressor_configureSerializedNative(JNIEnv* env,
+        jobject obj,
+        jstring profileName,
+        jbyteArray serializedCompressor)
+{
+    auto* state = getState(env, obj);
+    if (!ensureState(state, "configureSerialized")) {
+        return;
+    }
+    if (serializedCompressor == nullptr) {
+        throwNew(env, JniRefs().nullPointerException, "serializedCompressor");
+        return;
+    }
+    jsize length = env->GetArrayLength(serializedCompressor);
+    if (length <= 0) {
+        throwIllegalArgument(env, "Serialized compressor must not be empty");
+        return;
+    }
+    std::string serialized(static_cast<size_t>(length), '\0');
+    env->GetByteArrayRegion(serializedCompressor, 0, length, reinterpret_cast<jbyte*>(serialized.data()));
+    if (env->ExceptionCheck()) {
+        return;
+    }
+
+    std::string profile;
+    if (profileName != nullptr) {
+        const char* profileChars = env->GetStringUTFChars(profileName, nullptr);
+        if (profileChars == nullptr) {
+            throwNew(env, JniRefs().outOfMemoryError, "Unable to access profileName");
+            return;
+        }
+        profile.assign(profileChars);
+        env->ReleaseStringUTFChars(profileName, profileChars);
+    }
+
+    try {
+        // Build the replacement on the side: on any failure the instance keeps its
+        // previous configuration.
+        openzl::Compressor loaded;
+        if (profileName != nullptr) {
+            const auto& profiles = openzl::cli::compressProfiles();
+            auto it = profiles.find(profile);
+            if (it == profiles.end()) {
+                throwIllegalArgument(env, "Unknown compression profile: " + profile);
+                return;
+            }
+            auto args = makeProfileArgs(profile);
+            auto* profilePtr = it->second.get();
+            ZL_GraphID gid = profilePtr->gen(
+                    loaded.get(), profilePtr->opaque ? profilePtr->opaque.get() : nullptr, args);
+            loaded.selectStartingGraph(gid);
+        }
+        openzl::poly::string_view view(serialized.data(), serialized.size());
+        openzl::custom_parsers::processDependencies(loaded, view);
+        loaded.deserialize(view);
+        state->loadCompressor(std::move(loaded));
+    } catch (const openzl::cli::InvalidArgsException& ex) {
+        throwIllegalArgument(env, ex.what());
+    } catch (const std::exception& ex) {
+        throwIllegalArgument(env, std::string("Unable to load serialized compressor: ") + ex.what());
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL Java_io_github_hybledav_OpenZLCompressor_setDataArenaNative(JNIEnv* env,

@@ -49,6 +49,9 @@ struct NativeState {
     // Prepares a pooled state for a new OpenZLCompressor: fresh Compressor, so no
     // parameters or registered graphs leak from the previous owner.
     void recycle(ZL_GraphID graph);
+    // Replaces the Compressor with a fully built one (e.g. deserialized) and starts
+    // from its own starting graph. Throws std::runtime_error if it has none.
+    void loadCompressor(openzl::Compressor&& loaded);
 
 private:
     static void expectSuccess(ZL_Report report, const char* action);
