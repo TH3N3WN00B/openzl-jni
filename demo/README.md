@@ -27,5 +27,5 @@ Open:
 ## Notes
 
 - The demo app depends on `openzl-jni` with the `linux_amd64` classifier by
-  default. Override with `-Dopenzl.classifier=macos_arm64` or `windows_amd64`
+  default. Override with `-Dopenzl.classifier=windows_amd64`
   when building locally on another OS.

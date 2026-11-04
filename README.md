@@ -37,7 +37,6 @@
      Swap `linux_amd64` for the classifier that matches your target:
 
      - `linux_amd64`
-     - `macos_arm64`
      - `windows_amd64`
 
 2. **Compress data**
@@ -85,7 +84,6 @@
   | Classifier | Minimum |
   |---|---|
   | `linux_amd64` | glibc 2.34 and the libstdc++ of GCC 12 or newer (`GLIBCXX_3.4.30`), e.g. Ubuntu 22.04+, Debian 12+ |
-  | `macos_arm64` | macOS 14 (Sonoma) on Apple silicon |
   | `windows_amd64` | 64-bit Windows; the C/C++ runtime is linked statically, no extra DLLs needed |
 
 ---
@@ -101,7 +99,7 @@ Key features:
 - Compression profiles: access built-in profiles, select graphs, and serialize/deserialize compressors.
 - SDDL support: compile SDDL programs to bytecode and configure compressors to parse structured payloads.
 - Training bridge: a minimal, directory-based JNI wrapper to run OpenZL training and return serialized candidate compressors.
-- Native artifacts: Maven classifier artifacts include platform-specific native libraries (e.g. `linux_amd64`, `macos_arm64`).
+- Native artifacts: Maven classifier artifacts include platform-specific native libraries (`linux_amd64`, `windows_amd64`).
 - Buildability: native components are built with CMake; Maven integration is opt-in via `-Dnative.build=true`.
 
 ---

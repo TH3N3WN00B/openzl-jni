@@ -40,7 +40,6 @@ libopenzl.a
 libopenzl.so
 JNI/openzl-jni/src/main/resources/lib/**/*.so
 JNI/openzl-jni/src/main/resources/lib/**/*.dll
-JNI/openzl-jni/src/main/resources/lib/**/*.dylib
 
 # dependencies
 /deps/*

@@ -26,10 +26,6 @@ jobs:
     name: Build ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.allow-failure || false }}
-    env:
-      # Apple only: keep the dylib loadable on macOS 14+ even though the runner is newer.
-      # Clang and CMake (including OpenZL's xgboost ExternalProject) pick this up.
-      MACOSX_DEPLOYMENT_TARGET: '14.0'
     strategy:
       fail-fast: false
       matrix:
@@ -38,15 +34,6 @@ jobs:
             runner: ubuntu-22.04
             classifier: linux_amd64
             lib-name: libopenzl_jni.so
-            run-tests: true
-            allow-failure: false
-          - name: macos-arm64
-            # macos-14 images were retired from GitHub Actions on 2026-11-02, and on
-            # 2026-11-04 macos-15 jobs repeatedly found no runner. Pinned (not
-            # macos-latest) so the image only changes on purpose.
-            runner: macos-26
-            classifier: macos_arm64
-            lib-name: libopenzl_jni.dylib
             run-tests: true
             allow-failure: false
           - name: windows-x86_64
@@ -71,19 +58,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ninja-build
           cmake --version | head -n 1
-
-      - name: Install build dependencies (macOS)
-        if: runner.os == 'macOS'
-        env:
-          HOMEBREW_NO_AUTO_UPDATE: 1
-          HOMEBREW_NO_INSTALL_UPGRADE: 1
-          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
-        run: |
-          # The runner image already ships CMake and Ninja. Avoid `brew update`/upgrades,
-          # which used to cost ~16 min (tools were rebuilt from source on macos-14).
-          command -v ninja >/dev/null || brew install ninja
-          cmake --version | head -n 1
-          echo "ninja $(ninja --version)"
 
       - name: Install MinGW toolchain (Windows)
         if: runner.os == 'Windows'
@@ -129,14 +103,6 @@ jobs:
             fi
           else
             cp "cmake_build/cli/${{ matrix.lib-name }}" "$dest/"
-          fi
-          if [ "${{ runner.os }}" = "macOS" ]; then
-            minos=$(otool -l "$dest/${{ matrix.lib-name }}" | awk '/LC_BUILD_VERSION/ {f=1} f && $1=="minos" {print $2; exit}')
-            echo "${{ matrix.lib-name }} minimum macOS: ${minos}"
-            if [ "${minos}" != "${MACOSX_DEPLOYMENT_TARGET}" ]; then
-              echo "::error::${{ matrix.lib-name }} targets macOS ${minos}, expected ${MACOSX_DEPLOYMENT_TARGET}"
-              exit 1
-            fi
           fi
 
       - name: Package classifier (with tests)
@@ -315,7 +281,7 @@ jobs:
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          classifiers=(linux_amd64 macos_arm64 windows_amd64)
+          classifiers=(linux_amd64 windows_amd64)
           rm -rf JNI/openzl-jni/src/main/resources/lib
           mkdir -p JNI/openzl-jni/src/main/resources/lib
           rm -rf release-packages

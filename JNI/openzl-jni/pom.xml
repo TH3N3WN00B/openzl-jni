@@ -134,28 +134,6 @@
                                 </manifestEntries>
                             </archive>
                             <excludes combine.self="override">
-                                <exclude>${native.resource.directory}/macos_arm64/**</exclude>
-                                <exclude>${native.resource.directory}/windows_amd64/**</exclude>
-                            </excludes>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>attach-macos-jar</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                        <configuration>
-                            <classifier>macos_arm64</classifier>
-                            <archive>
-                                <manifestEntries>
-                                    <Automatic-Module-Name>io.github.hybledav.openzl.jni</Automatic-Module-Name>
-                                    <OpenZL-Native-Library>${native.library.name}</OpenZL-Native-Library>
-                                    <OpenZL-Native-Classifier>macos_arm64</OpenZL-Native-Classifier>
-                                </manifestEntries>
-                            </archive>
-                            <excludes combine.self="override">
-                                <exclude>${native.resource.directory}/linux_amd64/**</exclude>
                                 <exclude>${native.resource.directory}/windows_amd64/**</exclude>
                             </excludes>
                         </configuration>
@@ -177,7 +155,6 @@
                             </archive>
                             <excludes combine.self="override">
                                 <exclude>${native.resource.directory}/linux_amd64/**</exclude>
-                                <exclude>${native.resource.directory}/macos_arm64/**</exclude>
                             </excludes>
                         </configuration>
                     </execution>
