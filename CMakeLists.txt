@@ -28,7 +28,7 @@ FetchContent_Declare(
   GIT_SUBMODULES ""        
   GIT_SUBMODULES_RECURSE TRUE
   PATCH_COMMAND ${CMAKE_COMMAND} -DOPENZL_SOURCE_DIR=<SOURCE_DIR> -P ${PROJECT_SOURCE_DIR}/cmake/patch_openzl_windows_xgboost.cmake
-        COMMAND ${CMAKE_COMMAND} -DOPENZL_SOURCE_DIR=<SOURCE_DIR> -P ${PROJECT_SOURCE_DIR}/cmake/patch_openzl_protobuf_alignment.cmake
+        COMMAND ${CMAKE_COMMAND} -DOPENZL_SOURCE_DIR=<SOURCE_DIR> -P ${PROJECT_SOURCE_DIR}/cmake/patch_openzl_portability.cmake
 )
 FetchContent_MakeAvailable(openzl)
 
