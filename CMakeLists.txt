@@ -59,15 +59,35 @@ endif()
 
 find_package(JNI REQUIRED)
 find_package(protobuf CONFIG REQUIRED)
-# protobuf v32 (pinned by OpenZL) calls its own deprecated FieldOptions::weak(),
-# which floods every CI log with third-party warnings we cannot fix here.
-if(NOT MSVC)
-    foreach(OPENZL_PROTOBUF_TARGET libprotobuf libprotoc)
-        if(TARGET ${OPENZL_PROTOBUF_TARGET})
-            target_compile_options(${OPENZL_PROTOBUF_TARGET} PRIVATE -Wno-deprecated-declarations)
+
+# protobuf and abseil (fetched by OpenZL) are third-party code we cannot fix here:
+#  - compile their own sources without warnings (deprecated APIs, upb's fortified
+#    memcpy, ...), and
+#  - mark their targets SYSTEM (CMake >= 3.25) so their headers are -isystem for
+#    consumers; otherwise OpenZL's strict flags (-Wundef, -Wstrict-aliasing) flag them
+#    hundreds of times while building OpenZL's protobuf_serializer.
+function(openzl_jni_quiet_third_party dir)
+    get_property(dir_targets DIRECTORY "${dir}" PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(dir_target IN LISTS dir_targets)
+        get_target_property(dir_target_type ${dir_target} TYPE)
+        if(dir_target_type MATCHES "^(STATIC|SHARED|MODULE|OBJECT|INTERFACE)_LIBRARY$")
+            set_target_properties(${dir_target} PROPERTIES SYSTEM TRUE)
+            if(NOT dir_target_type STREQUAL "INTERFACE_LIBRARY" AND NOT MSVC)
+                target_compile_options(${dir_target} PRIVATE -w)
+            endif()
         endif()
     endforeach()
-endif()
+    get_property(dir_subdirs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
+    foreach(dir_subdir IN LISTS dir_subdirs)
+        openzl_jni_quiet_third_party("${dir_subdir}")
+    endforeach()
+endfunction()
+foreach(OPENZL_JNI_THIRD_PARTY protobuf absl)
+    FetchContent_GetProperties(${OPENZL_JNI_THIRD_PARTY})
+    if(${OPENZL_JNI_THIRD_PARTY}_POPULATED AND EXISTS "${${OPENZL_JNI_THIRD_PARTY}_SOURCE_DIR}")
+        openzl_jni_quiet_third_party("${${OPENZL_JNI_THIRD_PARTY}_SOURCE_DIR}")
+    endif()
+endforeach()
 if(TARGET custom_parsers AND TARGET pytorch_model_parser)
     target_link_libraries(custom_parsers pytorch_model_parser)
 endif()
