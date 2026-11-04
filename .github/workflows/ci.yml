@@ -13,7 +13,7 @@ on:
         type: boolean
         default: false
       version:
-        description: 'Release version to publish (e.g. 0.3.1); required when publishing'
+        description: 'Release version to publish (e.g. 0.3.2); required when publishing'
         required: false
 
 concurrency:
@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  REVISION: 0.3.1
+  REVISION: 0.3.2
 
 jobs:
   build:
@@ -245,16 +245,36 @@ jobs:
               body: summary
             });
 
+  # macOS, FreeBSD and illumos only build for releases: they need separate runners or
+  # VMs (slow), and macOS runner capacity has been unreliable for everyday pushes.
+  platforms:
+    name: Extra platforms
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/platforms.yml
+    with:
+      platforms: all
+      strict: true
+
   publish-github:
     name: Publish to GitHub Packages
     needs:
       - build
       - coverage
+      - platforms
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-22.04
     permissions:
       contents: read
       packages: write
+    env:
+      # <classifier>:<native library file> of every published platform.
+      NATIVE_LIBS: >-
+        linux_amd64:libopenzl_jni.so
+        windows_amd64:openzl_jni.dll
+        macos_arm64:libopenzl_jni.dylib
+        macos_amd64:libopenzl_jni.dylib
+        freebsd_amd64:libopenzl_jni.so
+        sunos_amd64:libopenzl_jni.so
     steps:
       - uses: actions/checkout@v7
 
@@ -283,32 +303,37 @@ jobs:
       - name: Download native libraries
         uses: actions/download-artifact@v8
         with:
-          pattern: openzl-jni-*_amd64
+          pattern: openzl-jni-*
           path: native-artifacts
 
       - name: Stage native artifacts
         run: |
-          stage() {
-            classifier="$1"; lib_name="$2"
+          for entry in $NATIVE_LIBS; do
+            classifier="${entry%%:*}"; lib_name="${entry#*:}"
             dest="JNI/openzl-jni/src/main/resources/lib/${classifier}"
             mkdir -p "$dest"
-            lib=$(find "native-artifacts/openzl-jni-${classifier}" -type f -name "${lib_name}" | head -n 1)
+            lib=$(find "native-artifacts/openzl-jni-${classifier}" -type f -name "${lib_name}" 2>/dev/null | head -n 1)
             if [ -z "$lib" ]; then
               echo "::error::${lib_name} not found in the ${classifier} build artifact"
               exit 1
             fi
             cp "$lib" "$dest/"
-          }
-          stage linux_amd64 libopenzl_jni.so
-          stage windows_amd64 openzl_jni.dll
+            echo "staged ${classifier}: $(wc -c < "$dest/${lib_name}") bytes"
+          done
 
       - name: Package
         run: |
           mvn -B -ntp -f JNI/pom.xml -pl openzl-jni -am \
             -DskipTests -Dgpg.skip=true -Djacoco.skip=true clean package
           T="JNI/openzl-jni/target"
-          unzip -l "$T/openzl-jni-${RELEASE_VERSION}-linux_amd64.jar" | grep 'lib/linux_amd64/libopenzl_jni.so'
-          unzip -l "$T/openzl-jni-${RELEASE_VERSION}-windows_amd64.jar" | grep 'lib/windows_amd64/openzl_jni.dll'
+          for entry in $NATIVE_LIBS; do
+            classifier="${entry%%:*}"; lib_name="${entry#*:}"
+            jar="$T/openzl-jni-${RELEASE_VERSION}-${classifier}.jar"
+            if ! unzip -l "$jar" | grep -q "lib/${classifier}/${lib_name}"; then
+              echo "::error::${jar} does not contain lib/${classifier}/${lib_name}"
+              exit 1
+            fi
+          done
           if unzip -l "$T/openzl-jni-${RELEASE_VERSION}.jar" | grep -q ' lib/'; then
             echo "::error::the base jar must not contain native libraries"
             exit 1
@@ -317,22 +342,34 @@ jobs:
       # deploy-file publishes exactly these files and runs outside the project, so
       # the POM's deploy/Central settings do not interfere. The flattened POM has
       # no <parent> to resolve.
-      - name: Deploy base, linux_amd64 and windows_amd64 jars
+      - name: Deploy base and platform jars
         working-directory: ${{ runner.temp }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           T="$GITHUB_WORKSPACE/JNI/openzl-jni/target"
           V="${RELEASE_VERSION}"
+          files=""; classifiers=""; types=""
+          for entry in $NATIVE_LIBS; do
+            classifier="${entry%%:*}"
+            files="${files},$T/openzl-jni-$V-${classifier}.jar"
+            classifiers="${classifiers},${classifier}"
+            types="${types},jar"
+          done
+          files="${files#,},$T/openzl-jni-$V-sources.jar,$T/openzl-jni-$V-javadoc.jar"
+          classifiers="${classifiers#,},sources,javadoc"
+          types="${types#,},jar,jar"
           mvn -B -ntp org.apache.maven.plugins:maven-deploy-plugin:3.1.4:deploy-file \
             -Durl="https://maven.pkg.github.com/${GITHUB_REPOSITORY}" \
             -DrepositoryId=github \
             -DpomFile="$GITHUB_WORKSPACE/JNI/openzl-jni/.flattened-pom.xml" \
             -Dfile="$T/openzl-jni-$V.jar" \
-            -Dfiles="$T/openzl-jni-$V-linux_amd64.jar,$T/openzl-jni-$V-windows_amd64.jar,$T/openzl-jni-$V-sources.jar,$T/openzl-jni-$V-javadoc.jar" \
-            -Dclassifiers=linux_amd64,windows_amd64,sources,javadoc \
-            -Dtypes=jar,jar,jar,jar
+            -Dfiles="$files" \
+            -Dclassifiers="$classifiers" \
+            -Dtypes="$types"
 
+  # A downstream project on each platform resolves the published package from GitHub
+  # Packages and round-trips data through its native library (ci/verify-consumer.sh).
   verify-github-package:
     name: Verify GitHub package (${{ matrix.name }} consumer)
     needs: publish-github
@@ -347,82 +384,83 @@ jobs:
           - name: Windows
             runner: windows-2022
             classifier: windows_amd64
+          - name: macOS arm64
+            runner: macos-15
+            classifier: macos_arm64
+          - name: macOS x86_64
+            runner: macos-15-intel
+            classifier: macos_amd64
     permissions:
       contents: read
       packages: read
     steps:
+      - uses: actions/checkout@v7
+
       - name: Set up Temurin JDK 25
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 25
-          server-id: github-openzl-jni
 
-      # Behaves like a downstream project: resolves only from GitHub Packages and
-      # Maven Central, then compresses with the published native library.
       - name: Resolve and use the published package
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CLASSIFIER: ${{ matrix.classifier }}
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          mkdir consumer && cd consumer
-          cat > pom.xml <<EOF
-          <project xmlns="http://maven.apache.org/POM/4.0.0">
-            <modelVersion>4.0.0</modelVersion>
-            <groupId>example</groupId>
-            <artifactId>openzl-consumer</artifactId>
-            <version>1.0</version>
-            <repositories>
-              <repository>
-                <id>github-openzl-jni</id>
-                <url>https://maven.pkg.github.com/${GITHUB_REPOSITORY}</url>
-              </repository>
-            </repositories>
-            <dependencies>
-              <dependency>
-                <groupId>io.github.th3n3wn00b</groupId>
-                <artifactId>openzl-jni</artifactId>
-                <version>${version}</version>
-              </dependency>
-              <dependency>
-                <groupId>io.github.th3n3wn00b</groupId>
-                <artifactId>openzl-jni</artifactId>
-                <version>${version}</version>
-                <classifier>${CLASSIFIER}</classifier>
-              </dependency>
-            </dependencies>
-          </project>
-          EOF
-          mvn -B -ntp dependency:tree
-          mvn -B -ntp -q dependency:copy-dependencies -DoutputDirectory=libs
-          ls -la libs
-          if ls libs | grep -q protobuf; then
-            echo "::error::protobuf-java should be optional, but the consumer pulled it"
-            exit 1
-          fi
-          cat > Check.java <<'EOF'
-          import io.github.hybledav.OpenZLCompressionLevel;
-          import io.github.hybledav.OpenZLCompressor;
-          import java.nio.charset.StandardCharsets;
-          import java.util.Arrays;
+        run: VERSION="${GITHUB_REF_NAME#v}" sh ci/verify-consumer.sh "${{ matrix.classifier }}"
 
-          public class Check {
-              public static void main(String[] args) {
-                  byte[] data = "openzl-jni from GitHub Packages ".repeat(4096).getBytes(StandardCharsets.UTF_8);
-                  try (OpenZLCompressor c = new OpenZLCompressor()) {
-                      c.setCompressionLevel(OpenZLCompressionLevel.LEVEL_19);
-                      byte[] packed = c.compress(data);
-                      if (!Arrays.equals(data, c.decompress(packed))) {
-                          throw new AssertionError("round trip failed");
-                      }
-                      System.out.println("OK " + data.length + " -> " + packed.length + " bytes");
-                  }
-              }
-          }
-          EOF
-          java --enable-native-access=ALL-UNNAMED -cp "libs/*" Check.java
+  # The freebsd_amd64 library is built on FreeBSD 14.3; check it on the newest release.
+  verify-github-package-freebsd:
+    name: Verify GitHub package (FreeBSD 15.1 consumer)
+    needs: publish-github
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve and use the published package inside FreeBSD 15.1
+        uses: vmactions/freebsd-vm@v1.5.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          release: '15.1'
+          envs: 'GITHUB_TOKEN GITHUB_ACTOR GITHUB_REPOSITORY GITHUB_REF_NAME'
+          prepare: |
+            pkg install -y openjdk21 maven
+          run: |
+            set -e
+            export JAVA_HOME=/usr/local/openjdk21
+            export PATH="$JAVA_HOME/bin:$PATH"
+            VERSION="${GITHUB_REF_NAME#v}" sh ci/verify-consumer.sh freebsd_amd64
+
+  verify-github-package-illumos:
+    name: Verify GitHub package (illumos consumer)
+    needs: publish-github
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve and use the published package inside OmniOS
+        uses: vmactions/omnios-vm@v1.3.8
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          release: 'r151054'
+          envs: 'GITHUB_TOKEN GITHUB_ACTOR GITHUB_REPOSITORY GITHUB_REF_NAME'
+          prepare: |
+            pkg install runtime/java/openjdk21 || test $? -eq 4
+          run: |
+            set -e
+            sh ci/install-maven.sh
+            java_bin=$(find /usr/jdk /usr/java /opt -path '*21*/bin/java' 2>/dev/null | head -n 1)
+            JAVA_HOME=$(dirname "$(dirname "$java_bin")")
+            export JAVA_HOME
+            export PATH="$JAVA_HOME/bin:$PATH"
+            VERSION="${GITHUB_REF_NAME#v}" sh ci/verify-consumer.sh sunos_amd64
 
   publish:
     name: Publish Artifacts

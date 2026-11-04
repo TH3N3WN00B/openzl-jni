@@ -6,13 +6,13 @@
     <parent>
         <groupId>io.github.th3n3wn00b</groupId>
         <artifactId>openzl-jni-parent</artifactId>
-        <version>0.3.1</version>
+        <version>0.3.2</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <groupId>io.github.th3n3wn00b</groupId>
     <artifactId>openzl-jni</artifactId>
-    <version>0.3.1</version>
+    <version>0.3.2</version>
     <packaging>jar</packaging>
 
     <name>OpenZL JNI Bindings</name>
@@ -136,6 +136,8 @@
                         <exclude>${native.resource.directory}/**</exclude>
                     </excludes>
                 </configuration>
+                <!-- One jar per platform: the classes plus only that platform's native
+                     library (the base jar above carries no native code). -->
                 <executions>
                     <execution>
                         <id>attach-linux-jar</id>
@@ -152,9 +154,12 @@
                                     <OpenZL-Native-Classifier>linux_amd64</OpenZL-Native-Classifier>
                                 </manifestEntries>
                             </archive>
-                            <excludes combine.self="override">
-                                <exclude>${native.resource.directory}/windows_amd64/**</exclude>
-                            </excludes>
+                            <includes combine.self="override">
+                                <include>io/**</include>
+                                <include>META-INF/**</include>
+                                <include>${native.resource.directory}/linux_amd64/**</include>
+                            </includes>
+                            <excludes combine.self="override"/>
                         </configuration>
                     </execution>
                     <execution>
@@ -172,9 +177,104 @@
                                     <OpenZL-Native-Classifier>windows_amd64</OpenZL-Native-Classifier>
                                 </manifestEntries>
                             </archive>
-                            <excludes combine.self="override">
-                                <exclude>${native.resource.directory}/linux_amd64/**</exclude>
-                            </excludes>
+                            <includes combine.self="override">
+                                <include>io/**</include>
+                                <include>META-INF/**</include>
+                                <include>${native.resource.directory}/windows_amd64/**</include>
+                            </includes>
+                            <excludes combine.self="override"/>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>attach-macos-arm64-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>macos_arm64</classifier>
+                            <archive>
+                                <manifestEntries>
+                                    <Automatic-Module-Name>io.github.hybledav.openzl.jni</Automatic-Module-Name>
+                                    <OpenZL-Native-Library>${native.library.name}</OpenZL-Native-Library>
+                                    <OpenZL-Native-Classifier>macos_arm64</OpenZL-Native-Classifier>
+                                </manifestEntries>
+                            </archive>
+                            <includes combine.self="override">
+                                <include>io/**</include>
+                                <include>META-INF/**</include>
+                                <include>${native.resource.directory}/macos_arm64/**</include>
+                            </includes>
+                            <excludes combine.self="override"/>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>attach-macos-amd64-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>macos_amd64</classifier>
+                            <archive>
+                                <manifestEntries>
+                                    <Automatic-Module-Name>io.github.hybledav.openzl.jni</Automatic-Module-Name>
+                                    <OpenZL-Native-Library>${native.library.name}</OpenZL-Native-Library>
+                                    <OpenZL-Native-Classifier>macos_amd64</OpenZL-Native-Classifier>
+                                </manifestEntries>
+                            </archive>
+                            <includes combine.self="override">
+                                <include>io/**</include>
+                                <include>META-INF/**</include>
+                                <include>${native.resource.directory}/macos_amd64/**</include>
+                            </includes>
+                            <excludes combine.self="override"/>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>attach-freebsd-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>freebsd_amd64</classifier>
+                            <archive>
+                                <manifestEntries>
+                                    <Automatic-Module-Name>io.github.hybledav.openzl.jni</Automatic-Module-Name>
+                                    <OpenZL-Native-Library>${native.library.name}</OpenZL-Native-Library>
+                                    <OpenZL-Native-Classifier>freebsd_amd64</OpenZL-Native-Classifier>
+                                </manifestEntries>
+                            </archive>
+                            <includes combine.self="override">
+                                <include>io/**</include>
+                                <include>META-INF/**</include>
+                                <include>${native.resource.directory}/freebsd_amd64/**</include>
+                            </includes>
+                            <excludes combine.self="override"/>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>attach-sunos-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>sunos_amd64</classifier>
+                            <archive>
+                                <manifestEntries>
+                                    <Automatic-Module-Name>io.github.hybledav.openzl.jni</Automatic-Module-Name>
+                                    <OpenZL-Native-Library>${native.library.name}</OpenZL-Native-Library>
+                                    <OpenZL-Native-Classifier>sunos_amd64</OpenZL-Native-Classifier>
+                                </manifestEntries>
+                            </archive>
+                            <includes combine.self="override">
+                                <include>io/**</include>
+                                <include>META-INF/**</include>
+                                <include>${native.resource.directory}/sunos_amd64/**</include>
+                            </includes>
+                            <excludes combine.self="override"/>
                         </configuration>
                     </execution>
                 </executions>

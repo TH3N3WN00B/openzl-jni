@@ -1,20 +1,30 @@
-name: Platform probe
+name: Extra platforms
 
-# Manual, non-blocking experiment: can the native library be built and the Java test
-# suite pass on the extra platforms our users run (macOS, FreeBSD, illumos/SunOS)?
-# Results decide which classifiers the release pipeline will publish.
+# Builds the native library and runs the Java test-suite on the platforms that need a
+# VM or a separate runner: macOS arm64/x86_64, FreeBSD and illumos (SunOS).
+#  - Called by CI on release tags (strict: any failure blocks publishing). The shipped
+#    libraries are uploaded as `openzl-jni-<classifier>` artifacts.
+#  - Run by hand (Actions > Extra platforms > Run workflow) as a non-blocking probe.
 on:
   workflow_dispatch:
     inputs:
       platforms:
-        description: 'Which platforms to probe'
+        description: 'Which platforms to build and test'
         type: choice
         default: all
         options: [all, macos, freebsd, illumos]
-
-concurrency:
-  group: platforms-${{ github.ref }}
-  cancel-in-progress: true
+      strict:
+        description: 'Fail the run when a platform fails'
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      platforms:
+        type: string
+        default: all
+      strict:
+        type: boolean
+        default: true
 
 jobs:
   macos:
@@ -22,7 +32,7 @@ jobs:
     if: inputs.platforms == 'all' || inputs.platforms == 'macos'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
-    continue-on-error: true
+    continue-on-error: ${{ !inputs.strict }}
     env:
       # Users run macOS 15.5 to 27.x: target 15.0 so one dylib covers all of them.
       MACOSX_DEPLOYMENT_TARGET: '15.0'
@@ -64,7 +74,12 @@ jobs:
           cmake -S . -B cmake_build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build cmake_build --target openzl_jni
           lib=cmake_build/cli/libopenzl_jni.dylib
-          otool -l "$lib" | awk '/LC_BUILD_VERSION/ {f=1} f && $1=="minos" {print "minos", $2; exit}'
+          minos=$(otool -l "$lib" | awk '/LC_BUILD_VERSION/ {f=1} f && $1=="minos" {print $2; exit}')
+          echo "minimum macOS: $minos"
+          if [ "$minos" != "$MACOSX_DEPLOYMENT_TARGET" ]; then
+            echo "::error::$lib targets macOS $minos, expected $MACOSX_DEPLOYMENT_TARGET"
+            exit 1
+          fi
           otool -L "$lib"
           mkdir -p "JNI/openzl-jni/src/main/resources/lib/${{ matrix.classifier }}"
           cp "$lib" "JNI/openzl-jni/src/main/resources/lib/${{ matrix.classifier }}/"
@@ -80,12 +95,10 @@ jobs:
           mvn -B -ntp -f JNI/pom.xml -pl openzl-jni -am -Dgpg.skip=true -Djacoco.skip=true test
 
       - name: Upload native library
-        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: probe-${{ matrix.classifier }}
+          name: openzl-jni-${{ matrix.classifier }}
           retention-days: 7
-          if-no-files-found: ignore
           path: JNI/openzl-jni/src/main/resources/lib/${{ matrix.classifier }}/**
 
   freebsd:
@@ -93,13 +106,19 @@ jobs:
     if: inputs.platforms == 'all' || inputs.platforms == 'freebsd'
     runs-on: ubuntu-24.04
     timeout-minutes: 150
-    continue-on-error: true
+    continue-on-error: ${{ !inputs.strict }}
     strategy:
       fail-fast: false
       matrix:
         # Java 21 (needed by these bindings and by current Paper) is packaged for the
-        # supported FreeBSD branches only; 13.x is EOL and its package repository is gone.
-        release: ['14.3', '15.1']
+        # supported FreeBSD branches only (13.x is EOL, its package repository is gone).
+        # The library shipped as freebsd_amd64 is built on the oldest supported release;
+        # FreeBSD keeps that binary working on newer releases (checked after publishing).
+        include:
+          - release: '14.3'
+            ship: true
+          - release: '15.1'
+            ship: false
     steps:
       - uses: actions/checkout@v7
 
@@ -127,12 +146,11 @@ jobs:
             mvn -B -ntp -f JNI/pom.xml -pl openzl-jni -am -Dgpg.skip=true -Djacoco.skip=true package
 
       - name: Upload native library
-        if: always()
+        if: matrix.ship
         uses: actions/upload-artifact@v7
         with:
-          name: probe-freebsd-${{ matrix.release }}
+          name: openzl-jni-freebsd_amd64
           retention-days: 7
-          if-no-files-found: ignore
           path: JNI/openzl-jni/src/main/resources/lib/freebsd_amd64/**
 
   illumos:
@@ -140,10 +158,11 @@ jobs:
     if: inputs.platforms == 'all' || inputs.platforms == 'illumos'
     runs-on: ubuntu-24.04
     timeout-minutes: 150
-    continue-on-error: true
+    continue-on-error: ${{ !inputs.strict }}
     strategy:
       fail-fast: false
       matrix:
+        # r151054 is the current OmniOS LTS (supported until 2028-05).
         release: ['r151054-build']
     steps:
       - uses: actions/checkout@v7
@@ -157,30 +176,22 @@ jobs:
           prepare: |
             set -ex
             uname -a
-            pkg set-publisher -O https://pkg.omnios.org/${{ matrix.release == 'r151054-build' && 'r151054' || matrix.release }}/extra extra.omnios
-            # `pkg install` is all-or-nothing: install each group on its own.
+            pkg set-publisher -O https://pkg.omnios.org/r151054/extra extra.omnios
+            # `pkg install` is all-or-nothing: install each group on its own
+            # (exit code 4 = nothing to do).
             pkg install runtime/java/openjdk21 developer/versioning/git || test $? -eq 4
             pkg install ooce/developer/cmake ooce/developer/ninja || test $? -eq 4
-            # OmniOS has no Maven package: use the official binary distribution.
-            v=3.9.16
-            base=https://archive.apache.org/dist/maven/maven-3/$v/binaries/apache-maven-$v-bin.tar.gz
-            curl -fsSL -o /tmp/maven.tgz "$base"
-            curl -fsSL -o /tmp/maven.tgz.sha512 "$base.sha512"
-            test "$(digest -a sha512 /tmp/maven.tgz)" = "$(cut -d' ' -f1 /tmp/maven.tgz.sha512)"
-            mkdir -p /opt/maven && gzip -dc /tmp/maven.tgz | (cd /opt/maven && tar xf -)
-            ln -sf /opt/maven/apache-maven-$v/bin/mvn /usr/bin/mvn
           run: |
             set -e
             uname -a
-            gcc --version | head -n 1 || true
-            command -v cmake ninja mvn java || true
+            # OmniOS has no Maven package: use the official binary distribution.
+            sh ci/install-maven.sh
+            gcc --version | head -n 1
             java_bin=$(find /usr/jdk /usr/java /opt -path '*21*/bin/java' 2>/dev/null | head -n 1)
             JAVA_HOME=$(dirname "$(dirname "$java_bin")")
             export JAVA_HOME
-            echo "JAVA_HOME=$JAVA_HOME"
-            "$JAVA_HOME/bin/java" -version
             export PATH="/opt/ooce/bin:$JAVA_HOME/bin:$PATH"
-            command -v cmake ninja mvn java
+            "$JAVA_HOME/bin/java" -version
             cmake -S . -B /tmp/ozl-build -G Ninja -DCMAKE_BUILD_TYPE=Release
             cmake --build /tmp/ozl-build --target openzl_jni
             mkdir -p JNI/openzl-jni/src/main/resources/lib/sunos_amd64
@@ -189,10 +200,8 @@ jobs:
             mvn -B -ntp -f JNI/pom.xml -pl openzl-jni -am -Dgpg.skip=true -Djacoco.skip=true package
 
       - name: Upload native library
-        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: probe-sunos-${{ matrix.release }}
+          name: openzl-jni-sunos_amd64
           retention-days: 7
-          if-no-files-found: ignore
           path: JNI/openzl-jni/src/main/resources/lib/sunos_amd64/**

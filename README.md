@@ -44,18 +44,18 @@
      <dependency>
          <groupId>io.github.th3n3wn00b</groupId>
          <artifactId>openzl-jni</artifactId>
-         <version>0.3.1</version>
+         <version>0.3.2</version>
      </dependency>
 
      <dependency>
          <groupId>io.github.th3n3wn00b</groupId>
          <artifactId>openzl-jni</artifactId>
-         <version>0.3.1</version>
+         <version>0.3.2</version>
          <classifier>linux_amd64</classifier>
      </dependency>
      ```
 
-     Published native classifiers: `linux_amd64` and `windows_amd64` (use the one for the machine that runs the code; on Windows, swap the classifier above). The Java packages are still `io.github.hybledav.*`.
+     Published native classifiers (use the one of the machine that runs the code): `linux_amd64`, `windows_amd64`, `macos_arm64`, `macos_amd64`, `freebsd_amd64` and `sunos_amd64` (illumos). See *Native platform minimums* below. The Java packages are still `io.github.hybledav.*`.
 
      `protobuf-java` is an *optional* dependency: plain compression does not need it. If you use `OpenZLProtobuf`, add it yourself:
 
@@ -113,6 +113,12 @@
   |---|---|
   | `linux_amd64` | glibc 2.34 and the libstdc++ of GCC 12 or newer (`GLIBCXX_3.4.30`), e.g. Ubuntu 22.04+, Debian 12+ |
   | `windows_amd64` | 64-bit Windows; the C/C++ runtime is linked statically, no extra DLLs needed |
+  | `macos_arm64` | macOS 15.0 or newer on Apple silicon |
+  | `macos_amd64` | macOS 15.0 or newer on Intel Macs |
+  | `freebsd_amd64` | FreeBSD 14.3 or newer (built on 14.3, verified on 15.1); needs `pkg install openjdk21` |
+  | `sunos_amd64` | illumos distributions such as OmniOS r151054+ with OpenJDK 21. Oracle Solaris is **not** supported: OpenJDK removed the Solaris port in JDK 15, so there is no Java 21 for it |
+
+  All of them need Java 21: FreeBSD releases older than 14.3 (no Java 21 packages) and other systems without a Java 21 runtime cannot load these bindings.
 
 ---
 
@@ -127,7 +133,7 @@ Key features:
 - Compression profiles: access built-in profiles, select graphs, and serialize/deserialize compressors.
 - SDDL support: compile SDDL programs to bytecode and configure compressors to parse structured payloads.
 - Training bridge: a minimal, directory-based JNI wrapper to run OpenZL training and return serialized candidate compressors.
-- Native artifacts: Maven classifier artifacts include platform-specific native libraries (`linux_amd64`, `windows_amd64`).
+- Native artifacts: Maven classifier artifacts include platform-specific native libraries (`linux_amd64`, `windows_amd64`, `macos_arm64`, `macos_amd64`, `freebsd_amd64`, `sunos_amd64`).
 - Buildability: native components are built with CMake; Maven integration is opt-in via `-Dnative.build=true`.
 
 ---
@@ -315,10 +321,10 @@ mvn -f JNI/pom.xml -pl openzl-jni -am clean package
 Push a tag `vX.Y.Z` equal to the project version (`<version>` in `JNI/pom.xml`):
 
 ```bash
-git tag v0.3.1 && git push origin v0.3.1
+git tag v0.3.2 && git push origin v0.3.2
 ```
 
-CI builds and tests Linux and Windows, then publishes the base jar, `linux_amd64`, `windows_amd64`, sources and javadoc to GitHub Packages, and a final job resolves them from a fresh consumer project on Linux and on Windows and compresses with them. GitHub Packages does not accept re-publishing a version: bump the version for the next release.
+CI builds and tests every platform (Linux and Windows on each push; macOS, FreeBSD and illumos for release tags, through `.github/workflows/platforms.yml`), then publishes the base jar, the six platform jars, sources and javadoc to GitHub Packages. Final jobs resolve them from a fresh consumer project on Linux, Windows, macOS arm64/x86_64, FreeBSD 15.1 and illumos and compress with them. GitHub Packages does not accept re-publishing a version: bump the version for the next release.
 
 ---
 
