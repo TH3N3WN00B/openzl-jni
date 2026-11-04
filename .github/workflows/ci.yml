@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. 0.1.3)'
+        description: 'Release version (e.g. 0.3.0)'
         required: true
 
 env:
-  REVISION: 0.2.1
+  REVISION: 0.3.0
 
 jobs:
   build:
@@ -42,10 +42,10 @@ jobs:
             allow-failure: false
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Set up Temurin JDK
-        uses: actions/setup-java@v4
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
@@ -78,13 +78,6 @@ jobs:
               -DCMAKE_BUILD_TYPE=Release
           else
             cmake -S . -B cmake_build -G Ninja -DCMAKE_BUILD_TYPE=Release
-          fi
-
-      - name: Re-apply vendored source patches after configure
-        shell: bash
-        run: |
-          if [ -f "${{ github.workspace }}/patches/fix_future_capture.py" ]; then
-            python3 "${{ github.workspace }}/patches/fix_future_capture.py" || true
           fi
 
       - name: Build native library
@@ -133,8 +126,22 @@ jobs:
             -Dplatform.classifier=${{ matrix.classifier }} \
             -Dgpg.skip=true -DskipTests clean package
 
+      - name: Set up Temurin JDK 25
+        if: matrix.run-tests == true
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - name: Test on JDK 25
+        if: matrix.run-tests == true
+        shell: bash
+        run: |
+          java -version
+          mvn -ntp -f JNI/pom.xml -pl openzl-jni -am             -Drevision=${REVISION}             -Dgpg.skip=true -Djacoco.skip=true test
+
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openzl-jni-${{ matrix.classifier }}
           retention-days: 7
@@ -148,10 +155,10 @@ jobs:
     needs: build
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Set up Temurin JDK
-        uses: actions/setup-java@v4
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
@@ -163,12 +170,6 @@ jobs:
 
       - name: Configure CMake
         run: cmake -S . -B cmake_build -G Ninja -DCMAKE_BUILD_TYPE=Release
-
-      - name: Re-apply vendored source patches after configure
-        run: |
-          if [ -f "${{ github.workspace }}/patches/fix_future_capture.py" ]; then
-            python3 "${{ github.workspace }}/patches/fix_future_capture.py" || true
-          fi
 
       - name: Build native library
         run: cmake --build cmake_build --target openzl_jni
@@ -182,12 +183,12 @@ jobs:
       - name: Generate coverage report
         run: |
           mvn -ntp -f JNI/pom.xml -pl openzl-jni -am \
-            org.jacoco:jacoco-maven-plugin:0.8.11:prepare-agent \
+            org.jacoco:jacoco-maven-plugin:0.8.16:prepare-agent \
             test \
-            org.jacoco:jacoco-maven-plugin:0.8.11:report
+            org.jacoco:jacoco-maven-plugin:0.8.16:report
 
       - name: Attach coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jacoco-report
           retention-days: 7
@@ -202,7 +203,7 @@ jobs:
             --append-to-summary
 
       - name: Upload coverage summary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-summary
           retention-days: 7
@@ -210,7 +211,7 @@ jobs:
 
       - name: Comment coverage on PR
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
@@ -240,7 +241,7 @@ jobs:
             echo "version input is required when manually publishing."
             exit 1
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure Maven settings
         run: |
@@ -270,7 +271,7 @@ jobs:
           EOF
 
       - name: Set up Temurin JDK for publishing
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
@@ -280,7 +281,7 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY || '' }}
 
       - name: Download classifier artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: openzl-jni-*
           path: release-artifacts
@@ -339,7 +340,7 @@ jobs:
           done
 
       - name: Upload release bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openzl-jni-release-${{ github.event.inputs.version }}
           retention-days: 14

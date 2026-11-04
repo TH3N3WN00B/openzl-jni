@@ -3,6 +3,8 @@
 [![CI](https://github.com/hybledav/openzl-jni/actions/workflows/ci.yml/badge.svg)](https://github.com/hybledav/openzl-jni/actions/workflows/ci.yml)
 [![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 [![Java 21+](https://img.shields.io/badge/java-21%2B-ff69b4.svg)](https://openjdk.org/projects/jdk/21/)
+[![Tested on Java 25](https://img.shields.io/badge/tested%20on-java%2025-ff69b4.svg)](https://openjdk.org/projects/jdk/25/)
+[![OpenZL 0.3.0](https://img.shields.io/badge/OpenZL-0.3.0-blue.svg)](https://github.com/facebook/openzl/releases/tag/v0.3.0)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.hybledav/openzl-jni.svg)](https://central.sonatype.com/artifact/io.github.hybledav/openzl-jni)
 
 > Meta’s OpenZL compression engine for the JVM — zero-copy JNI bindings, pooled buffers.
@@ -64,6 +66,20 @@
                info.compressedSize(), info.flavor(), info.graph());
    }
    ```
+
+---
+
+## Runtime requirements
+
+- **Java 21 or newer.** The jars are compiled for Java 21 (`--release 21`) and CI runs the full test-suite on JDK 21 and JDK 25.
+- **Native access on JDK 24+.** The bindings load a JNI library, which recent JDKs flag as a restricted operation ([JEP 472](https://openjdk.org/jeps/472)). Start your JVM with
+
+  ```bash
+  java --enable-native-access=ALL-UNNAMED ...
+  ```
+
+  (or add `Enable-Native-Access: ALL-UNNAMED` to the manifest of your executable jar). Without it JDK 24/25 print a warning, and future JDKs will refuse to load the library. On JDK 21 the flag is accepted and has no effect.
+- **OpenZL 0.3.0** native code is bundled in the platform classifier jars. Frames written by this release use OpenZL's newest frame format (max version 27); older OpenZL readers may not be able to decode them.
 
 ---
 

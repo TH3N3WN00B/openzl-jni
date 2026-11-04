@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include "openzl/cpp/CParam.hpp"
 #include "openzl/cpp/Compressor.hpp"
 #include "openzl/zl_compress.h"
 #include "openzl/zl_compressor.h"
@@ -75,6 +76,15 @@ bool ensureDirectRange(JNIEnv* env,
 void throwNew(JNIEnv* env, jclass clazz, const char* message);
 void throwIllegalState(JNIEnv* env, const std::string& message);
 void throwIllegalArgument(JNIEnv* env, const std::string& message);
+
+// OpenZL >= 0.3.0 refuses to train a compressor whose format version is unset.
+// Mirror the upstream CLI and default to the newest format the library writes.
+inline void ensureTrainingFormatVersion(openzl::Compressor& compressor)
+{
+    if (compressor.getParameter(openzl::CParam::FormatVersion) == 0) {
+        compressor.setParameter(openzl::CParam::FormatVersion, ZL_MAX_FORMAT_VERSION);
+    }
+}
 
 ZL_GraphID graphIdFromOrdinal(jint ordinal);
 jint graphOrdinalFromId(ZL_GraphID graph);

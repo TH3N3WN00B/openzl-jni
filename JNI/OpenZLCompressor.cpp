@@ -91,17 +91,19 @@ jobjectArray trainFromDirectoryImpl(JNIEnv* env,
         }
         params.paretoFrontier = pareto != JNI_FALSE;
 
-        params.compressorGenFunc = [profilePtr, args](openzl::poly::string_view serialized) -> std::unique_ptr<openzl::Compressor> {
+        params.compressorGenFunc = [profilePtr, args](openzl::poly::string_view serialized,
+                                           openzl::poly::string_view fatBundle) -> std::unique_ptr<openzl::Compressor> {
             auto up = std::make_unique<openzl::Compressor>();
             try {
                 ZL_GraphID gid = profilePtr->gen(up->get(), profilePtr->opaque ? profilePtr->opaque.get() : nullptr, args);
                 up->selectStartingGraph(gid);
             } catch (...) {
             }
-            up->deserialize(serialized);
+            up->deserialize(serialized, fatBundle);
             return up;
         };
 
+        ensureTrainingFormatVersion(compressor);
         auto trained = openzl::training::train(multi, compressor, params);
 
         jclass byteArrClass = env->FindClass("[B");
@@ -113,7 +115,7 @@ jobjectArray trainFromDirectoryImpl(JNIEnv* env,
             return nullptr;
         }
         for (size_t i = 0; i < trained.size(); ++i) {
-            const std::string_view& sv = *trained[i];
+            const std::string& sv = trained[i].serializedCompressor;
             jbyteArray ba = env->NewByteArray(static_cast<jsize>(sv.size()));
             if (ba == nullptr) {
                 return nullptr;

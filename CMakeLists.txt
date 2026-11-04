@@ -22,7 +22,7 @@ include(FetchContent)
 FetchContent_Declare(
   openzl
   GIT_REPOSITORY https://github.com/facebook/openzl.git
-  GIT_TAG v0.2.0
+  GIT_TAG v0.3.0
   GIT_SHALLOW TRUE
   GIT_PROGRESS TRUE
   GIT_SUBMODULES ""        
@@ -125,6 +125,11 @@ if(WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(openzl_jni PRIVATE -static-libgcc -static-libstdc++ -static)
+endif()
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # The statically linked OpenZL/protobuf/abseil debug info makes the JNI
+    # library ~480 MB on MinGW; strip it for the artifacts we ship.
+    target_link_options(openzl_jni PRIVATE $<$<CONFIG:Release,MinSizeRel>:-s>)
 endif()
 if(TARGET openzl_xgboost_imports)
     add_dependencies(openzl_jni openzl_xgboost_imports)

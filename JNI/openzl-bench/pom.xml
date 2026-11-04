@@ -6,7 +6,7 @@
     <parent>
         <groupId>io.github.hybledav</groupId>
         <artifactId>openzl-jni-parent</artifactId>
-        <version>0.2.1</version>
+        <version>0.3.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -15,11 +15,6 @@
 
     <name>OpenZL Benchmark Suite</name>
     <description>Extensible protobuf benchmark comparing OpenZL, gzip, and pure protobuf paths.</description>
-
-    <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.release>11</maven.compiler.release>
-    </properties>
 
     <dependencies>
         <dependency>
@@ -36,34 +31,23 @@
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
-            <version>4.32.0</version>
         </dependency>
         <dependency>
             <groupId>com.github.luben</groupId>
             <artifactId>zstd-jni</artifactId>
-            <version>1.5.6-6</version>
         </dependency>
         <dependency>
-            <groupId>org.lz4</groupId>
+            <!-- org.lz4:lz4-java is unmaintained (CVE-2025-12183); at.yawk.lz4 is the maintained drop-in. -->
+            <groupId>at.yawk.lz4</groupId>
             <artifactId>lz4-java</artifactId>
-            <version>1.8.0</version>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.13.0</version>
-                <configuration>
-                    <release>${maven.compiler.release}</release>
-                </configuration>
-            </plugin>
-            <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
-                <version>3.1.0</version>
                 <configuration>
                     <mainClass>io.github.hybledav.bench.protobuf.ProtobufCodecBenchMain</mainClass>
                 </configuration>

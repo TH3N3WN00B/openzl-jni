@@ -685,6 +685,7 @@ std::string trainCompressorFromSamples(
     params.numSamples      = multiInputs.size();
     params.paretoFrontier  = false;
 
+    ensureTrainingFormatVersion(*serializer.getCompressor());
     auto trained = openzl::training::train(
             multiInputs,
             *serializer.getCompressor(),
@@ -692,8 +693,7 @@ std::string trainCompressorFromSamples(
     if (trained.empty()) {
         return {};
     }
-    const std::string_view& serialized = *trained.front();
-    return std::string(serialized.data(), serialized.size());
+    return std::move(trained.front().serializedCompressor);
 }
 
 SerializerCacheEntry& serializerEntryForType(const std::string& type)
@@ -2291,12 +2291,14 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_io_github_hybledav_OpenZLStructur
             params.maxTimeSecs = static_cast<size_t>(maxTimeSecs);
         }
         params.paretoFrontier = pareto != JNI_FALSE;
-        params.compressorGenFunc = [typeName](openzl::poly::string_view serialized) {
+        params.compressorGenFunc = [typeName](openzl::poly::string_view serialized,
+                                           openzl::poly::string_view fatBundle) {
             auto up = std::make_unique<openzl::Compressor>(createStructuredCompressorForType(typeName));
-            up->deserialize(serialized);
+            up->deserialize(serialized, fatBundle);
             return up;
         };
 
+        ensureTrainingFormatVersion(baseCompressor);
         auto trained = openzl::training::train(multiInputs, baseCompressor, params);
 
         jclass byteArrClass = env->FindClass("[B");
@@ -2308,7 +2310,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_io_github_hybledav_OpenZLStructur
             return nullptr;
         }
         for (size_t i = 0; i < trained.size(); ++i) {
-            const std::string_view& sv = *trained[i];
+            const std::string& sv = trained[i].serializedCompressor;
             jbyteArray elem = env->NewByteArray(static_cast<jsize>(sv.size()));
             if (elem == nullptr) {
                 return nullptr;
@@ -2632,17 +2634,19 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_io_github_hybledav_OpenZLProtobuf
             params.maxTimeSecs = static_cast<size_t>(maxTimeSecs);
         }
         params.paretoFrontier = pareto != JNI_FALSE;
-        params.compressorGenFunc = [](openzl::poly::string_view serialized) {
+        params.compressorGenFunc = [](openzl::poly::string_view serialized,
+                                       openzl::poly::string_view fatBundle) {
             auto up = std::make_unique<openzl::Compressor>();
             try {
                 ZL_GraphID gid = openzl::protobuf::ZL_Protobuf_registerGraph(up->get());
                 up->selectStartingGraph(gid);
             } catch (...) {
             }
-            up->deserialize(serialized);
+            up->deserialize(serialized, fatBundle);
             return up;
         };
 
+        ensureTrainingFormatVersion(*serializer.getCompressor());
         auto trained = openzl::training::train(
                 multiInputs, *serializer.getCompressor(), params);
 
@@ -2656,7 +2660,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_io_github_hybledav_OpenZLProtobuf
             return nullptr;
         }
         for (size_t i = 0; i < trained.size(); ++i) {
-            const std::string_view& sv = *trained[i];
+            const std::string& sv = trained[i].serializedCompressor;
             jbyteArray elem = env->NewByteArray(static_cast<jsize>(sv.size()));
             if (elem == nullptr) {
                 return nullptr;
