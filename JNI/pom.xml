@@ -3,14 +3,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.github.hybledav</groupId>
+    <groupId>io.github.th3n3wn00b</groupId>
     <artifactId>openzl-jni-parent</artifactId>
     <version>0.3.0</version>
     <packaging>pom</packaging>
 
     <name>OpenZL JNI Parent</name>
     <description>Parent aggregator matching the packaging layout of zstd-jni.</description>
-    <url>https://github.com/hybledav/openzl-jni</url>
+    <url>https://github.com/TH3N3WN00B/openzl-jni</url>
 
     <licenses>
         <license>
@@ -26,12 +26,19 @@
             <organization>hybledav</organization>
             <organizationUrl>https://github.com/hybledav</organizationUrl>
         </developer>
+        <developer>
+            <name>TH3N3WN00B</name>
+            <url>https://github.com/TH3N3WN00B</url>
+            <roles>
+                <role>fork maintainer</role>
+            </roles>
+        </developer>
     </developers>
 
     <scm>
-        <connection>scm:git:https://github.com/hybledav/openzl-jni.git</connection>
-        <developerConnection>scm:git:ssh://git@github.com/hybledav/openzl-jni.git</developerConnection>
-        <url>https://github.com/hybledav/openzl-jni</url>
+        <connection>scm:git:https://github.com/TH3N3WN00B/openzl-jni.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/TH3N3WN00B/openzl-jni.git</developerConnection>
+        <url>https://github.com/TH3N3WN00B/openzl-jni</url>
     </scm>
 
     <properties>

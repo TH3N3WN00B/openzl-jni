@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [ main, dev ]
+    # Pushing a tag vX.Y.Z (matching the project version) publishes to GitHub Packages.
+    tags: [ 'v*' ]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -222,6 +224,162 @@ jobs:
               issue_number: context.issue.number,
               body: summary
             });
+
+  publish-github:
+    name: Publish to GitHub Packages
+    needs:
+      - build
+      - coverage
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # Writes ~/.m2/settings.xml with server "github", authenticated as this
+      # workflow (GITHUB_ACTOR / GITHUB_TOKEN).
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+          server-id: github
+
+      - name: Check tag matches project version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          project_version=$(mvn -B -ntp -q -f JNI/openzl-jni/pom.xml help:evaluate \
+            -Dexpression=project.version -DforceStdout)
+          echo "tag=${tag_version} project=${project_version}"
+          if [ "${tag_version}" != "${project_version}" ]; then
+            echo "::error title=Version mismatch::Tag ${GITHUB_REF_NAME} does not match project version ${project_version}"
+            exit 1
+          fi
+          echo "RELEASE_VERSION=${project_version}" >> "$GITHUB_ENV"
+
+      - name: Download Linux native library
+        uses: actions/download-artifact@v8
+        with:
+          name: openzl-jni-linux_amd64
+          path: linux-artifact
+
+      - name: Stage native artifact
+        run: |
+          dest="JNI/openzl-jni/src/main/resources/lib/linux_amd64"
+          mkdir -p "$dest"
+          lib=$(find linux-artifact -type f -name libopenzl_jni.so | head -n 1)
+          if [ -z "$lib" ]; then
+            echo "::error::libopenzl_jni.so not found in the linux_amd64 build artifact"
+            exit 1
+          fi
+          cp "$lib" "$dest/"
+
+      - name: Package
+        run: |
+          mvn -B -ntp -f JNI/pom.xml -pl openzl-jni -am \
+            -DskipTests -Dgpg.skip=true -Djacoco.skip=true clean package
+          unzip -l "JNI/openzl-jni/target/openzl-jni-${RELEASE_VERSION}-linux_amd64.jar" \
+            | grep 'lib/linux_amd64/libopenzl_jni.so'
+
+      # deploy-file publishes exactly these files (this job's windows_amd64 jar has
+      # no DLL) and runs outside the project, so the POM's deploy/Central settings
+      # do not interfere. The flattened POM has no <parent> to resolve.
+      - name: Deploy base and linux_amd64 jars
+        working-directory: ${{ runner.temp }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          T="$GITHUB_WORKSPACE/JNI/openzl-jni/target"
+          V="${RELEASE_VERSION}"
+          mvn -B -ntp org.apache.maven.plugins:maven-deploy-plugin:3.1.4:deploy-file \
+            -Durl="https://maven.pkg.github.com/${GITHUB_REPOSITORY}" \
+            -DrepositoryId=github \
+            -DpomFile="$GITHUB_WORKSPACE/JNI/openzl-jni/.flattened-pom.xml" \
+            -Dfile="$T/openzl-jni-$V.jar" \
+            -Dfiles="$T/openzl-jni-$V-linux_amd64.jar,$T/openzl-jni-$V-sources.jar,$T/openzl-jni-$V-javadoc.jar" \
+            -Dclassifiers=linux_amd64,sources,javadoc \
+            -Dtypes=jar,jar,jar
+
+  verify-github-package:
+    name: Verify GitHub package (Linux consumer)
+    needs: publish-github
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Set up Temurin JDK 25
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+          server-id: github-openzl-jni
+
+      # Behaves like a downstream project: resolves only from GitHub Packages and
+      # Maven Central, then compresses with the published native library.
+      - name: Resolve and use the published package
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          mkdir consumer && cd consumer
+          cat > pom.xml <<EOF
+          <project xmlns="http://maven.apache.org/POM/4.0.0">
+            <modelVersion>4.0.0</modelVersion>
+            <groupId>example</groupId>
+            <artifactId>openzl-consumer</artifactId>
+            <version>1.0</version>
+            <repositories>
+              <repository>
+                <id>github-openzl-jni</id>
+                <url>https://maven.pkg.github.com/${GITHUB_REPOSITORY}</url>
+              </repository>
+            </repositories>
+            <dependencies>
+              <dependency>
+                <groupId>io.github.th3n3wn00b</groupId>
+                <artifactId>openzl-jni</artifactId>
+                <version>${version}</version>
+              </dependency>
+              <dependency>
+                <groupId>io.github.th3n3wn00b</groupId>
+                <artifactId>openzl-jni</artifactId>
+                <version>${version}</version>
+                <classifier>linux_amd64</classifier>
+              </dependency>
+            </dependencies>
+          </project>
+          EOF
+          mvn -B -ntp dependency:tree
+          mvn -B -ntp -q dependency:copy-dependencies -DoutputDirectory=libs
+          ls -la libs
+          if ls libs | grep -q protobuf; then
+            echo "::error::protobuf-java should be optional, but the consumer pulled it"
+            exit 1
+          fi
+          cat > Check.java <<'EOF'
+          import io.github.hybledav.OpenZLCompressionLevel;
+          import io.github.hybledav.OpenZLCompressor;
+          import java.nio.charset.StandardCharsets;
+          import java.util.Arrays;
+
+          public class Check {
+              public static void main(String[] args) {
+                  byte[] data = "openzl-jni from GitHub Packages ".repeat(4096).getBytes(StandardCharsets.UTF_8);
+                  try (OpenZLCompressor c = new OpenZLCompressor()) {
+                      c.setCompressionLevel(OpenZLCompressionLevel.LEVEL_19);
+                      byte[] packed = c.compress(data);
+                      if (!Arrays.equals(data, c.decompress(packed))) {
+                          throw new AssertionError("round trip failed");
+                      }
+                      System.out.println("OK " + data.length + " -> " + packed.length + " bytes");
+                  }
+              }
+          }
+          EOF
+          java --enable-native-access=ALL-UNNAMED -cp "libs/*" Check.java
 
   publish:
     name: Publish Artifacts

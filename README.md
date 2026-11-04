@@ -1,43 +1,61 @@
 # openzl-jni
 
-[![CI](https://github.com/hybledav/openzl-jni/actions/workflows/ci.yml/badge.svg)](https://github.com/hybledav/openzl-jni/actions/workflows/ci.yml)
+[![CI](https://github.com/TH3N3WN00B/openzl-jni/actions/workflows/ci.yml/badge.svg)](https://github.com/TH3N3WN00B/openzl-jni/actions/workflows/ci.yml)
 [![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 [![Java 21+](https://img.shields.io/badge/java-21%2B-ff69b4.svg)](https://openjdk.org/projects/jdk/21/)
 [![Tested on Java 25](https://img.shields.io/badge/tested%20on-java%2025-ff69b4.svg)](https://openjdk.org/projects/jdk/25/)
 [![OpenZL 0.3.0](https://img.shields.io/badge/OpenZL-0.3.0-blue.svg)](https://github.com/facebook/openzl/releases/tag/v0.3.0)
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.hybledav/openzl-jni.svg)](https://central.sonatype.com/artifact/io.github.hybledav/openzl-jni)
+[![GitHub Packages](https://img.shields.io/badge/GitHub%20Packages-io.github.th3n3wn00b%3Aopenzl--jni-blue.svg)](https://github.com/TH3N3WN00B/openzl-jni/packages)
 
 > Meta’s OpenZL compression engine for the JVM — zero-copy JNI bindings, pooled buffers.
+>
+> This is a fork of [hybledav/openzl-jni](https://github.com/hybledav/openzl-jni), published as `io.github.th3n3wn00b:openzl-jni` on GitHub Packages.
 
 ---
 
 ## Getting Started
 
-1. **Add the dependency**
+1. **Add the repository and the dependency**
 
-     Always declare the base artifact (pure Java façade) **and** the classifier that matches your runtime so Maven pulls in both the APIs and the platform-specific native library.
+     Releases are published to [GitHub Packages](https://github.com/TH3N3WN00B/openzl-jni/packages). GitHub requires authentication to download Maven packages, even public ones: create a personal access token (classic) with the `read:packages` scope and add it to `~/.m2/settings.xml`:
 
      ```xml
+     <settings>
+         <servers>
+             <server>
+                 <id>github-openzl-jni</id>
+                 <username>YOUR_GITHUB_USER</username>
+                 <password>YOUR_TOKEN_WITH_read:packages</password>
+             </server>
+         </servers>
+     </settings>
+     ```
+
+     Then declare the repository (same `id`) and both the base artifact (pure Java façade) **and** the native classifier, so Maven pulls in the APIs and the platform-specific library:
+
+     ```xml
+     <repositories>
+         <repository>
+             <id>github-openzl-jni</id>
+             <url>https://maven.pkg.github.com/TH3N3WN00B/openzl-jni</url>
+         </repository>
+     </repositories>
+
      <dependency>
-         <groupId>io.github.hybledav</groupId>
+         <groupId>io.github.th3n3wn00b</groupId>
          <artifactId>openzl-jni</artifactId>
-         <version>VERSION</version>
+         <version>0.3.0</version>
      </dependency>
 
      <dependency>
-         <groupId>io.github.hybledav</groupId>
+         <groupId>io.github.th3n3wn00b</groupId>
          <artifactId>openzl-jni</artifactId>
-         <version>VERSION</version>
+         <version>0.3.0</version>
          <classifier>linux_amd64</classifier>
      </dependency>
      ```
 
-     Replace `VERSION` with the release shown on [Maven Central](https://central.sonatype.com/artifact/io.github.hybledav/openzl-jni).
-
-     Swap `linux_amd64` for the classifier that matches your target:
-
-     - `linux_amd64`
-     - `windows_amd64`
+     Published native classifier: `linux_amd64`. (`windows_amd64` is built and tested in CI but not published yet.) The Java packages are still `io.github.hybledav.*`.
 
      `protobuf-java` is an *optional* dependency: plain compression does not need it. If you use `OpenZLProtobuf`, add it yourself:
 
@@ -291,6 +309,16 @@ mkdir -p JNI/openzl-jni/src/main/resources/lib/linux_amd64
 cp cmake_build/cli/libopenzl_jni.so JNI/openzl-jni/src/main/resources/lib/linux_amd64/
 mvn -f JNI/pom.xml -pl openzl-jni -am clean package
 ```
+
+### Releasing to GitHub Packages
+
+Push a tag `vX.Y.Z` equal to the project version (`<version>` in `JNI/pom.xml`):
+
+```bash
+git tag v0.3.0 && git push origin v0.3.0
+```
+
+CI builds and tests Linux and Windows, then publishes the base jar, `linux_amd64`, sources and javadoc to GitHub Packages, and a final job resolves them from a fresh consumer project on Linux and compresses with them. GitHub Packages does not accept re-publishing a version: bump the version for the next release.
 
 ---
 

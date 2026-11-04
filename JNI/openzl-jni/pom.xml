@@ -4,20 +4,20 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>io.github.hybledav</groupId>
+        <groupId>io.github.th3n3wn00b</groupId>
         <artifactId>openzl-jni-parent</artifactId>
         <version>0.3.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <groupId>io.github.hybledav</groupId>
+    <groupId>io.github.th3n3wn00b</groupId>
     <artifactId>openzl-jni</artifactId>
     <version>0.3.0</version>
     <packaging>jar</packaging>
 
     <name>OpenZL JNI Bindings</name>
     <description>Java bindings for the OpenZL compressor via JNI.</description>
-    <url>https://github.com/hybledav/openzl-jni</url>
+    <url>https://github.com/TH3N3WN00B/openzl-jni</url>
 
     <licenses>
         <license>
@@ -33,13 +33,29 @@
             <organization>hybledav</organization>
             <organizationUrl>https://github.com/hybledav</organizationUrl>
         </developer>
+        <developer>
+            <name>TH3N3WN00B</name>
+            <url>https://github.com/TH3N3WN00B</url>
+            <roles>
+                <role>fork maintainer</role>
+            </roles>
+        </developer>
     </developers>
 
     <scm>
-        <connection>scm:git:https://github.com/hybledav/openzl-jni.git</connection>
-        <developerConnection>scm:git:ssh://git@github.com/hybledav/openzl-jni.git</developerConnection>
-        <url>https://github.com/hybledav/openzl-jni</url>
+        <connection>scm:git:https://github.com/TH3N3WN00B/openzl-jni.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/TH3N3WN00B/openzl-jni.git</developerConnection>
+        <url>https://github.com/TH3N3WN00B/openzl-jni</url>
     </scm>
+
+    <distributionManagement>
+        <!-- GitHub Packages of this fork; CI publishes there on v* tags. -->
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages (TH3N3WN00B/openzl-jni)</name>
+            <url>https://maven.pkg.github.com/TH3N3WN00B/openzl-jni</url>
+        </repository>
+    </distributionManagement>
 
     <properties>
         <native.library.name>openzl_jni</native.library.name>

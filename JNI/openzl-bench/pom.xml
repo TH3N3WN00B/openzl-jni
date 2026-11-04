@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>io.github.hybledav</groupId>
+        <groupId>io.github.th3n3wn00b</groupId>
         <artifactId>openzl-jni-parent</artifactId>
         <version>0.3.0</version>
         <relativePath>../pom.xml</relativePath>
@@ -18,13 +18,13 @@
 
     <dependencies>
         <dependency>
-            <groupId>io.github.hybledav</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>openzl-jni</artifactId>
             <version>${project.version}</version>
             <classifier>linux_amd64</classifier>
         </dependency>
         <dependency>
-            <groupId>io.github.hybledav</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>openzl-utils</artifactId>
             <version>${project.version}</version>
         </dependency>
