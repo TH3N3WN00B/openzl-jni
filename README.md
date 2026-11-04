@@ -39,6 +39,16 @@
      - `linux_amd64`
      - `windows_amd64`
 
+     `protobuf-java` is an *optional* dependency: plain compression does not need it. If you use `OpenZLProtobuf`, add it yourself:
+
+     ```xml
+     <dependency>
+         <groupId>com.google.protobuf</groupId>
+         <artifactId>protobuf-java</artifactId>
+         <version>4.36.2</version>
+     </dependency>
+     ```
+
 2. **Compress data**
 
    ```java
